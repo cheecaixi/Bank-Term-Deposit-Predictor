@@ -1,4 +1,26 @@
 # AIAD
+
+# 1. Project Objectives
+Machine Learning Goal: Train and validate a classification model to predict customer term deposit subscriptions using demographic and historical campaign data.
+
+Engineering Goal: Architect and deploy the end-to-end Machine Learning pipeline as a modular, 5-microservice system (AI Inference, API Gateway, Dashboard, Database, and Monitoring) on Kubernetes (Minikube).
+
+Operational Goal: Ensure high system availability, fault tolerance, and horizontal pod autoscaling (HPA) for the inference engine to support high-volume, concurrent requests during peak marketing campaigns.
+
+# 2. Target Users
+Primary Users (Telesales & Bank Agents): Utilize the real-time UI during customer calls to receive instant subscription probabilities, allowing them to dynamically adapt sales strategies.
+
+Secondary Users (Marketing Analysts & Managers): Evaluate aggregate performance metrics, campaign trends, and customer conversion rates via the analytics interface to optimize resource allocation.
+
+Technical Users (DevOps & System Administrators): Monitor system performance, API request latency, container health, and model drift using the centralized logging service.
+
+# 3. Expected Outcomes
+Functional Deliverable: A fully containerized microservices application hosted on Kubernetes, leveraging an API gateway for dynamic service discovery and request routing.
+
+Business Value: Enhanced campaign conversion rates and lower operational overhead achieved through data-driven customer prioritization.
+
+Technical Quality Outcomes: A resilient, scalable architecture capable of handling peak workloads via autoscaling, supported by end-to-end observability and persistent data logging.
+
 Here’s a clear **architecture sketch in words** for your chosen dataset (Bank Marketing & Customer Behavior) and how to split the microservices among 4 members, with one extra service added for fairness:
 
 ---
