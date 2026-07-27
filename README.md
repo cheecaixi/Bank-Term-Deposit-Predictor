@@ -72,7 +72,7 @@ Here’s a clear **architecture sketch in words** for your chosen dataset (Bank 
 
 ### Initial system architecture diagram
 ```
-┌──────────────────────┐
+                         ┌──────────────────────┐
                          │      Dashboard       │
                          │ Predictions & Charts │
                          └──────────┬───────────┘
