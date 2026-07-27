@@ -70,6 +70,35 @@ Here’s a clear **architecture sketch in words** for your chosen dataset (Bank 
                                 <--> [Monitoring/Logging]
 ```
 
+### Initial system architecture diagram
+```
+                         ┌──────────────────────┐
+                         │      Dashboard       │
+                         │ Predictions & Charts │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │     API Gateway      │
+                         │ Validation & Routing │
+                         └───────┬──────┬───────┘
+                                 │      │
+                    ┌────────────┘      └─────────────┐
+                    ▼                                 ▼
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │ AI Inference Service │          │   Database Service   │
+        │ Predict Yes / No     │          │ Customers & Results  │
+        └──────────┬───────────┘          └──────────┬───────────┘
+                   │                                  │
+                   └──────────────┬───────────────────┘
+                                  ▼
+                       ┌──────────────────────┐
+                       │ Monitoring / Logging │
+                       │ Requests, Predictions│
+                       │ Errors & Performance │
+                       └──────────────────────┘
+```
+
 - Dashboard shows predictions + insights.  
 - API Gateway is the traffic controller.  
 - AI Inference is the brain.  
