@@ -1,2 +1,5 @@
 models/*.joblib
-models/*.joblib
+**/__pycache__/
+*.py[cod]
+.env
+**/.env
