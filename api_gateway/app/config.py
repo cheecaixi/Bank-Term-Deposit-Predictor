@@ -7,7 +7,7 @@ class Settings:
     
     # Internal Microservice URLs (read from environment variables with fallbacks)
     INFERENCE_SERVICE_URL: str = os.getenv("INFERENCE_SERVICE_URL", "http://localhost:7000")
-    DATABASE_SERVICE_URL: str = os.getenv("DATABASE_SERVICE_URL", "http://localhost:7001")
+    DATABASE_SERVICE_URL: str = os.getenv("DATABASE_SERVICE_URL", "http://localhost:8000")
     MONITORING_SERVICE_URL: str = os.getenv("MONITORING_SERVICE_URL", "http://localhost:7002")
     
     # Gateway Server Settings
