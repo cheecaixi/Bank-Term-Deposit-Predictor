@@ -167,45 +167,166 @@ st.title("🏦 Bank Marketing AI Dashboard")
 mode_badge = "🧪 Mock mode -- no backend needed" if st.session_state.use_mock else f"🟢 Live -- {st.session_state.gateway_url}"
 st.caption(mode_badge)
 
-tab1, tab2, tab3 = st.tabs(["🧑 Single Prediction", "📁 Batch Prediction", "📈 Analyst View"])
+tab1, tab2, tab3 = st.tabs(["🧑 Customer Prediction", "📁 Batch Prediction", "📈 Analyst View"])
 
 # ---------------------------------------------------------------
-# TAB 1: SINGLE PREDICTION
+# TAB 1: SINGLE PREDICTION (Customer Prediction)
 # ---------------------------------------------------------------
 with tab1:
-    st.subheader("Predict for one customer")
-    st.write("Use this mid-call, or to spot-check a customer already looked up.")
+    st.subheader("Customer Subscription Prediction")
+    st.write(
+        "Enter the customer's demographic, financial, and campaign information "
+        "to predict their likelihood of subscribing to a term deposit."
+    )
 
     with st.form("single_predict_form"):
+
+        # =========================================================
+        # CUSTOMER INFORMATION
+        # =========================================================
+        st.markdown("### 👤 Customer Information")
+
         col1, col2, col3 = st.columns(3)
+
         with col1:
-            age = st.number_input("Age", min_value=18, max_value=100, value=35)
-            job = st.selectbox("Job", JOB_OPTIONS)
-            marital = st.selectbox("Marital status", MARITAL_OPTIONS)
-            education = st.selectbox("Education", EDUCATION_OPTIONS)
-            default = st.selectbox("Has credit in default?", YES_NO_OPTIONS)
+            age = st.number_input("Age", min_value=18,max_value=100,value=35)
+
         with col2:
-            balance = st.number_input("Account balance (€)", value=1000, step=100)
-            housing = st.selectbox("Has housing loan?", YES_NO_OPTIONS)
-            loan = st.selectbox("Has personal loan?", YES_NO_OPTIONS)
-            contact = st.selectbox("Contact method", CONTACT_OPTIONS)
-            day = st.number_input("Last contact day of month", min_value=1, max_value=31, value=15)
+            job = st.selectbox("Job",JOB_OPTIONS)
+
         with col3:
-            month = st.selectbox("Last contact month", MONTH_OPTIONS)
-            campaign = st.number_input("Contacts this campaign", min_value=1, value=1)
-            pdays = st.number_input("Days since last contact (-1 = never)", value=-1)
-            previous = st.number_input("Contacts before this campaign", min_value=0, value=0)
-            poutcome = st.selectbox("Previous campaign outcome", POUTCOME_OPTIONS)
+            marital = st.selectbox("Marital Status",MARITAL_OPTIONS)
 
-        submitted = st.form_submit_button("🔮 Predict", type="primary", use_container_width=True)
+        col1, col2, col3 = st.columns(3)
 
+        with col1:
+            education = st.selectbox("Education", EDUCATION_OPTIONS)
+
+        with col2:
+            default = st.selectbox("Credit Default",YES_NO_OPTIONS,help="Whether the customer has credit in default.")
+        
+        st.divider()
+
+        # =========================================================
+        # FINANCIAL & LOAN INFORMATION
+        # =========================================================
+        st.markdown("### 💰 Financial & Loan Information")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            balance = st.number_input(
+                "Account Balance (€)",
+                value=1000,
+                step=100
+            )
+
+        with col2:
+            housing = st.selectbox(
+                "Housing Loan",
+                YES_NO_OPTIONS
+            )
+
+        with col3:
+            loan = st.selectbox(
+                "Personal Loan",
+                YES_NO_OPTIONS
+            )
+
+        st.divider()
+
+        # =========================================================
+        # CAMPAIGN INFORMATION
+        # =========================================================
+        st.markdown("### 📞 Campaign Information")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            contact = st.selectbox(
+                "Contact Method",
+                CONTACT_OPTIONS
+            )
+
+        with col2:
+            day = st.number_input(
+                "Last Contact Day",
+                min_value=1,
+                max_value=31,
+                value=15
+            )
+
+        with col3:
+            month = st.selectbox(
+                "Last Contact Month",
+                MONTH_OPTIONS
+            )
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            campaign = st.number_input(
+                "Contacts in Current Campaign",
+                min_value=1,
+                value=1
+            )
+
+        with col2:
+            pdays = st.number_input(
+                "Days Since Previous Contact",
+                min_value=-1,
+                value=-1,
+                step=1,
+                help="-1 means the customer was not previously contacted. 0 means the previous contact was on the same day."
+            )
+
+        with col3:
+            previous = st.number_input(
+                "Previous Campaign Contacts",
+                min_value=0,
+                value=0
+            )
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            poutcome = st.selectbox(
+                "Previous Campaign Outcome",
+                POUTCOME_OPTIONS
+            )
+
+        # Keep remaining columns empty
+
+        st.divider()
+
+        submitted = st.form_submit_button(
+            "🔮 Predict Subscription",
+            type="primary",
+            use_container_width=True
+        )
+
+    # =============================================================
+    # PREDICTION RESULT
+    # =============================================================
     if submitted:
         record = {
-            "age": age, "job": job, "marital": marital, "education": education,
-            "default": default, "balance": balance, "housing": housing, "loan": loan,
-            "contact": contact, "day": day, "month": month, "campaign": campaign,
-            "pdays": pdays, "previous": previous, "poutcome": poutcome,
+            "age": age,
+            "job": job,
+            "marital": marital,
+            "education": education,
+            "default": default,
+            "balance": balance,
+            "housing": housing,
+            "loan": loan,
+            "contact": contact,
+            "day": day,
+            "month": month,
+            "campaign": campaign,
+            "pdays": pdays,
+            "previous": previous,
+            "poutcome": poutcome,
         }
+
         with st.spinner("Scoring customer..."):
             result = predict_one(record)
 
@@ -214,26 +335,51 @@ with tab1:
             label = result["prediction"]
 
             res_col1, res_col2 = st.columns([1, 2])
+
             with res_col1:
-                st.metric("Subscription probability", f"{prob*100:.1f}%")
+                st.metric(
+                    "Subscription Probability",
+                    f"{prob * 100:.1f}%"
+                )
+
             with res_col2:
                 st.progress(prob)
 
             if label == "yes":
-                st.success("✅ Likely to SUBSCRIBE — good candidate to prioritize on this call.")
+                st.success(
+                    "✅ Likely to Subscribe — this customer has a high "
+                    "predicted likelihood of subscribing to the term deposit."
+                )
             else:
-                st.warning("❌ Unlikely to subscribe based on current profile.")
+                st.warning(
+                    "❌ Unlikely to Subscribe — this customer has a low "
+                    "predicted likelihood based on the current profile."
+                )
 
             st.session_state.history.insert(0, {
-                "time": time.strftime("%H:%M:%S"), "job": job, "age": age,
-                "probability": prob, "prediction": label,
+                "time": time.strftime("%H:%M:%S"),
+                "job": job,
+                "age": age,
+                "probability": prob,
+                "prediction": label,
             })
 
+    # =============================================================
+    # RECENT PREDICTIONS
+    # =============================================================
     if st.session_state.history:
         st.divider()
-        st.write("#### Recent predictions this session")
-        hist_df = pd.DataFrame(st.session_state.history[:10])
-        st.dataframe(hist_df, use_container_width=True, hide_index=True)
+        st.write("#### Recent Predictions This Session")
+
+        hist_df = pd.DataFrame(
+            st.session_state.history[:10]
+        )
+
+        st.dataframe(
+            hist_df,
+            use_container_width=True,
+            hide_index=True
+        )
 
 # ---------------------------------------------------------------
 # TAB 2: BATCH PREDICTION
