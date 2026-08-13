@@ -23,7 +23,7 @@ app.add_middleware(
 
 # Load Microservice URLs from Environment Variables (With Local Development Fallbacks)
 INFERENCE_URL = os.getenv("INFERENCE_SERVICE_URL", "http://localhost:7000")
-DATABASE_URL = os.getenv("DATABASE_SERVICE_URL", "http://localhost:7001")
+DATABASE_URL = os.getenv("DATABASE_SERVICE_URL", "http://localhost:8000")
 MONITORING_URL = os.getenv("MONITORING_SERVICE_URL", "http://localhost:7002")
 TIMEOUT_SECONDS = float(os.getenv("TIMEOUT_SECONDS", 5.0))
 
