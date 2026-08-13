@@ -131,7 +131,7 @@ async def fetch_historical_results():
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                f"{DATABASE_URL}/records",
+                f"{DATABASE_URL}/historical-data",
                 timeout=TIMEOUT_SECONDS
             )
             response.raise_for_status()
@@ -156,7 +156,7 @@ async def update_customer(customer_id: str, updated_data: CustomerUpdateModel):
         try:
             payload = updated_data.dict(exclude_unset=True)
             response = await client.put(
-                f"{DATABASE_URL}/records/{customer_id}",
+                f"{DATABASE_URL}/historical-data/{customer_id}",
                 json=payload,
                 timeout=TIMEOUT_SECONDS
             )
@@ -186,7 +186,7 @@ async def delete_customer(customer_id: str):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.delete(
-                f"{DATABASE_URL}/records/{customer_id}",
+                f"{DATABASE_URL}/historical-data/{customer_id}",
                 timeout=TIMEOUT_SECONDS
             )
             response.raise_for_status()
