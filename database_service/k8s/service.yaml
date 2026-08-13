@@ -1,0 +1,46 @@
+# ============================================================
+# POSTGRES SERVICE
+# ============================================================
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: postgres-service
+
+spec:
+
+  selector:
+    app: postgres
+
+  ports:
+
+    - port: 5432
+      targetPort: 5432
+
+  type: ClusterIP
+
+
+---
+
+# ============================================================
+# DATABASE API SERVICE
+# ============================================================
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: database-service
+
+spec:
+
+  selector:
+    app: database-service
+
+  ports:
+
+    - port: 8000
+      targetPort: 8000
+
+  type: ClusterIP
