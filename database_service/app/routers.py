@@ -51,7 +51,7 @@ def create_customer(
     # Check duplicate phone number
     existing_customer = (
         db.query(Customer)
-        .filter(Customer.phone_no == data.phone_no)
+        .filter(Customer.phone_number == data.phone_number)
         .first()
     )
 
@@ -455,7 +455,7 @@ def get_batch_results(
 
         response.append({
             "customer_id": customer.customer_id,
-            "phone_no": customer.phone_no,
+            "phone_number": customer.phone_number,
 
             "age": customer.age,
             "job": customer.job,

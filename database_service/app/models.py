@@ -33,12 +33,12 @@ class HistoricalData(Base):
     marital = Column(String(30), nullable=False)
     education = Column(String(50), nullable=False)
 
-    credit_default = Column(String(10), nullable=False)
+    default = Column(String(10), nullable=False)
 
     balance = Column(Float, nullable=False)
 
-    housing_loan = Column(String(10), nullable=False)
-    personal_loan = Column(String(10), nullable=False)
+    housing = Column(String(10), nullable=False)
+    loan = Column(String(10), nullable=False)
 
     # Campaign information
     contact = Column(String(30), nullable=False)
@@ -117,7 +117,7 @@ class Customer(Base):
         index=True
     )
 
-    phone_no = Column(
+    phone_number = Column(
         String(30),
         unique=True,
         nullable=False
@@ -148,7 +148,7 @@ class Customer(Base):
         nullable=False
     )
 
-    credit_default = Column(
+    default = Column(
         String(10),
         nullable=False
     )
@@ -158,12 +158,12 @@ class Customer(Base):
         nullable=False
     )
 
-    housing_loan = Column(
+    housing = Column(
         String(10),
         nullable=False
     )
 
-    personal_loan = Column(
+    loan = Column(
         String(10),
         nullable=False
     )
