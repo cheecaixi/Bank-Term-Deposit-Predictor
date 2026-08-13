@@ -332,7 +332,8 @@ with tab1:
 
         if result:
             prob = result["probability"]
-            label = result["prediction"]
+            subscription = result["subscription"]
+
 
             res_col1, res_col2 = st.columns([1, 2])
 
@@ -345,7 +346,7 @@ with tab1:
             with res_col2:
                 st.progress(prob)
 
-            if label == "yes":
+            if subscription == "Yes":
                 st.success(
                     "✅ Likely to Subscribe — this customer has a high "
                     "predicted likelihood of subscribing to the term deposit."
@@ -361,7 +362,7 @@ with tab1:
                 "job": job,
                 "age": age,
                 "probability": prob,
-                "prediction": label,
+                "prediction": subscription,
             })
 
     # =============================================================
