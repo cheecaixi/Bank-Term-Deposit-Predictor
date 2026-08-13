@@ -4,22 +4,11 @@ Bank Marketing Dashboard Service
 Student C's microservice. Talks ONLY to the API Gateway (Member B) --
 never directly to Inference, Database, or Monitoring.
 
-MOCK vs LIVE MODE
-------------------
-Toggle it from the sidebar in the app itself (no code edit needed).
-- Mock mode: uses fake local prediction logic. Works with zero other
-  services running -- good for building/demoing before teammates finish.
-- Live mode: calls the real Gateway at GATEWAY_URL.
-
 GATEWAY CONTRACT (matches Member B's actual FastAPI code)
 -----------------------------------------------------------
   POST {GATEWAY_URL}/api/predict   -> single customer -> {"prediction":.., "probability":..}
   GET  {GATEWAY_URL}/api/results   -> list of all past logged predictions (raw, not aggregated)
   GET  {GATEWAY_URL}/api/logs      -> monitoring/system logs
-
-NOTE: there is no batch endpoint on the Gateway yet. Until Member B adds
-one (e.g. POST /api/predict/batch), live batch mode falls back to calling
-/api/predict once per row. This is slower and is clearly labelled in the UI.
 """
 
 import os
@@ -62,111 +51,208 @@ if "gateway_url" not in st.session_state:
 if "use_mock" not in st.session_state:
     st.session_state.use_mock = True
 
-
 # ---------------------------------------------------------------
-# MOCK PREDICTOR (stand-in for the real Inference service)
-# ---------------------------------------------------------------
-def mock_predict(record: dict) -> dict:
-    score = 0.1
-    if record.get("balance", 0) > 1000:
-        score += 0.2
-    if record.get("poutcome") == "success":
-        score += 0.4
-    if record.get("housing") == "no":
-        score += 0.1
-    if record.get("previous", 0) > 0:
-        score += 0.05
-    score = min(score, 0.95)
-    return {"probability": round(score, 3), "prediction": "yes" if score > 0.5 else "no"}
-
-
-# ---------------------------------------------------------------
-# REAL API CALLS -- matches Member B's FastAPI gateway exactly
+# REAL API CALLS -- matches Member B's FastAPI gateway 
 # ---------------------------------------------------------------
 def call_predict_api(record: dict) -> dict:
+    """
+    Send one customer's data to the API Gateway.
+    The API Gateway validates the request and forwards it to
+    the AI Inference Service, which uses the deployed ML model
+    to generate the subscription prediction.
+    """
     url = f"{st.session_state.gateway_url}/api/predict"
-    resp = requests.post(url, json=record, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
-
+    response = requests.post(url, json=record, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 def call_results_api() -> list:
-    """Raw historical predictions from the Gateway -- we aggregate them
-    ourselves client-side since the Gateway doesn't expose a summary
-    endpoint yet."""
+    """
+    Retrieve historical prediction records from the API Gateway.
+    The Gateway forwards this request to the Database Service.
+    """
     url = f"{st.session_state.gateway_url}/api/results"
-    resp = requests.get(url, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def predict_one(record: dict):
-    if st.session_state.use_mock:
-        time.sleep(0.3)  # tiny delay so the spinner feels real in demos
-        return mock_predict(record)
-    try:
-        return call_predict_api(record)
-    except Exception as e:
-        st.error(f"Could not reach the Gateway at {st.session_state.gateway_url}: {e}")
-        return None
-
-
-def predict_many(df: pd.DataFrame, progress_callback=None):
-    """Returns a results DataFrame with probability/prediction columns added."""
-    feature_df = df[FEATURE_FIELDS]
-    results = []
-    for i, row in feature_df.iterrows():
-        record = row.to_dict()
-        if st.session_state.use_mock:
-            result = mock_predict(record)
-        else:
-            try:
-                result = call_predict_api(record)
-            except Exception as e:
-                st.error(f"Batch stopped -- Gateway error on row {i}: {e}")
-                return None
-        results.append(result)
-        if progress_callback:
-            progress_callback((i + 1) / len(feature_df))
-    out = df.copy()
-    out["probability"] = [r["probability"] for r in results]
-    out["prediction"] = [r["prediction"] for r in results]
-    return out
-
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 # ---------------------------------------------------------------
-# SIDEBAR -- connection settings, visible and interactive
+# SINGLE CUSTOMER PREDICTION
+# ---------------------------------------------------------------
+def predict_one(record: dict):
+    """
+    Generate a prediction for one customer using the deployed AI model through the API Gateway.
+    """
+    try:
+        return call_predict_api(record)
+    except requests.exceptions.ConnectionError:
+        st.error(
+            "❌ Unable to connect to the API Gateway. "
+            "Please make sure the API Gateway is running."
+        )
+    except requests.exceptions.Timeout:
+        st.error(
+            "❌ The prediction request timed out. "
+            "Please try again."
+        )
+    except requests.exceptions.HTTPError as error:
+        st.error(
+            f"❌ The API Gateway returned an error: {error}"
+        )
+    except Exception as error:
+        st.error(
+            f"❌ Prediction failed: {error}"
+        )
+    return None
+
+# ---------------------------------------------------------------    
+# BATCH CUSTOMER PREDICTION
+# ---------------------------------------------------------------
+def predict_many(df: pd.DataFrame, progress_callback=None):
+    """
+    Generate predictions for multiple customers.
+    Each customer record is sent to the API Gateway, which
+    forwards the request to the AI Inference Service.
+
+    Returns:
+        DataFrame containing the original customer data together
+        with prediction probability and subscription result.
+    """
+    feature_df = df[FEATURE_FIELDS]
+    results = []
+    total_records = len(feature_df)
+    for row_number, (_, row) in enumerate(feature_df.iterrows(), start=1):
+        record = row.to_dict()
+
+        try:
+            result = call_predict_api(record)
+        except requests.exceptions.ConnectionError:
+            st.error(
+                "❌ Unable to connect to the API Gateway "
+                f"while processing customer {row_number}."
+            )
+            return None
+        except requests.exceptions.Timeout:
+            st.error(
+                f"❌ Request timed out while processing "
+                f"customer {row_number}."
+            )
+            return None
+        except requests.exceptions.HTTPError as error:
+            st.error(
+                f"❌ API Gateway error while processing "
+                f"customer {row_number}: {error}"
+            )
+            return None
+        except Exception as error:
+            st.error(
+                f"❌ Prediction failed for customer "
+                f"{row_number}: {error}"
+            )
+            return None
+
+        results.append(result)
+
+        # Update progress bar
+        if progress_callback:
+            progress_callback(row_number / total_records)
+
+    # -----------------------------------------------------------
+    # ADD MODEL RESULTS TO ORIGINAL DATASET
+    # -----------------------------------------------------------
+    out = df.copy()
+    out["probability"] = [result["probability"] for result in results]
+
+    # Member A returns:
+    # prediction = 1 / 0
+    # subscription = "Yes" / "No"
+    #
+    # Use the readable subscription result for the dashboard.
+    out["prediction"] = [result["subscription"] for result in results]
+
+    # Keep the numerical prediction separately if needed
+    out["prediction_code"] = [result["prediction"] for result in results]
+
+    return out
+
+# ---------------------------------------------------------------
+# SIDEBAR -- API Gateway connection settings
 # ---------------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Settings")
-    st.session_state.use_mock = st.toggle(
-        "Mock mode",
-        value=st.session_state.use_mock,
-        help="ON = fake predictions, works with no backend running. OFF = calls the real API Gateway.",
+    st.markdown("### 🔌 API Gateway")
+    st.session_state.gateway_url = st.text_input(
+        "Gateway URL",
+        value=st.session_state.gateway_url,
+        help=(
+            "Address of the FastAPI API Gateway used by the "
+            "dashboard to access the AI Inference Service."
+        )
     )
-    if not st.session_state.use_mock:
-        st.session_state.gateway_url = st.text_input("Gateway URL", value=st.session_state.gateway_url)
-        if st.button("🔌 Test connection"):
-            try:
-                r = requests.get(f"{st.session_state.gateway_url}/docs", timeout=3)
-                st.success(f"Reached gateway (status {r.status_code})")
-            except Exception as e:
-                st.error(f"Unreachable: {e}")
-    else:
-        st.caption("Using local fake predictor -- no backend needed.")
 
+    if st.button(
+        "🔌 Test Connection",
+        use_container_width=True
+    ):
+        try:
+            response = requests.get(
+                f"{st.session_state.gateway_url}/health",
+                timeout=3
+            )
+
+            if response.status_code == 200:
+                st.success("✅ API Gateway is connected.")
+            else:
+                st.warning(
+                    f"⚠️ Gateway responded with "
+                    f"status {response.status_code}."
+                )
+
+        except requests.exceptions.ConnectionError:
+            st.error(
+                "❌ Unable to connect to the API Gateway. "
+                "Check that the Gateway service is running."
+            )
+        except requests.exceptions.Timeout:
+            st.error(
+                "❌ Connection timed out. "
+                "Please check the Gateway address."
+            )
+        except Exception as error:
+            st.error(
+                f"❌ Connection test failed: {error}"
+            )
     st.divider()
-    st.caption(f"Mode: {'🧪 MOCK' if st.session_state.use_mock else '🟢 LIVE'}")
-    st.caption(f"Predictions this session: {len(st.session_state.history)}")
 
+    # -----------------------------------------------------------
+    # CONNECTION STATUS
+    # -----------------------------------------------------------
+    st.markdown("### 📡 System Status")
+    st.caption(
+        "🟢 Live AI prediction mode"
+    )
+    st.caption(
+        f"Gateway: {st.session_state.gateway_url}"
+    )
+    st.caption(
+        f"Predictions this session: "
+        f"{len(st.session_state.history)}"
+    )
 
 # ---------------------------------------------------------------
 # HEADER
 # ---------------------------------------------------------------
 st.title("🏦 Bank Marketing AI Dashboard")
-mode_badge = "🧪 Mock mode -- no backend needed" if st.session_state.use_mock else f"🟢 Live -- {st.session_state.gateway_url}"
-st.caption(mode_badge)
-
+st.caption(
+    f"🟢 Live AI Prediction System • "
+    f"API Gateway: {st.session_state.gateway_url}"
+)
+st.write(
+    "Use the AI-powered prediction system to assess customer "
+    "likelihood of subscribing to a term deposit, score multiple "
+    "customers for campaign prioritisation, and review historical "
+    "prediction results."
+)
 tab1, tab2, tab3 = st.tabs(["🧑 Customer Prediction", "📁 Batch Customer Prediction", "📈 Analyst View"])
 
 # ---------------------------------------------------------------
@@ -178,6 +264,11 @@ with tab1:
         "Enter the customer's demographic, financial, and campaign information "
         "to predict their likelihood of subscribing to a term deposit."
     )
+    st.info(
+        "💡 The trained AI model analyses the information below and "
+        "returns a predicted subscription probability. Use the result "
+        "to support customer prioritisation during a marketing call."
+    )
 
     with st.form("single_predict_form"):
 
@@ -185,22 +276,33 @@ with tab1:
         # CUSTOMER INFORMATION
         # =========================================================
         st.markdown("### 👤 Customer Information")
+        st.caption("Basic demographic information about the customer.")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            age = st.number_input("Age", min_value=18,max_value=100,value=35)
+            age = st.number_input("Age", 
+                                  min_value=18,
+                                  max_value=100,
+                                  value=35,
+                                  help="Customer's age in years.")
 
         with col2:
-            job = st.selectbox("Job",JOB_OPTIONS)
+            job = st.selectbox("Job",
+                               JOB_OPTIONS,
+                               help="Customer's occupation.")
 
         with col3:
-            marital = st.selectbox("Marital Status",MARITAL_OPTIONS)
+            marital = st.selectbox("Marital Status",
+                                   MARITAL_OPTIONS,
+                                   help="Customer's current marital status.")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            education = st.selectbox("Education", EDUCATION_OPTIONS)
+            education = st.selectbox("Education", 
+                                     EDUCATION_OPTIONS,
+                                     help="Customer's highest level of education.")
 
         with col2:
             default = st.selectbox("Credit Default",YES_NO_OPTIONS,help="Whether the customer has credit in default.")
@@ -211,99 +313,89 @@ with tab1:
         # FINANCIAL & LOAN INFORMATION
         # =========================================================
         st.markdown("### 💰 Financial & Loan Information")
+        st.caption("Information about the customer's account and existing loans.")
 
         col1, col2, col3 = st.columns(3)
 
+        EUR_TO_SGD = 1.48
         with col1:
-            balance = st.number_input(
-                "Account Balance (€)",
-                value=1000,
-                step=100
-            )
+            balance = st.number_input("Account Balance (€)",
+                                      value=1000,
+                                      step=100,
+                                      help="Customer's current account balance in euros.")
+            balance_sgd = balance * EUR_TO_SGD
+
+            st.caption(f"≈ SGD ${balance_sgd:,.2f}")
 
         with col2:
-            housing = st.selectbox(
-                "Housing Loan",
-                YES_NO_OPTIONS
-            )
+            housing = st.selectbox("Housing Loan",
+                                   YES_NO_OPTIONS,
+                                   help="Whether the customer has a housing loan.")
 
         with col3:
-            loan = st.selectbox(
-                "Personal Loan",
-                YES_NO_OPTIONS
-            )
+            loan = st.selectbox("Personal Loan",
+                                YES_NO_OPTIONS,
+                                help="Whether the customer has a personal loan.")
 
         st.divider()
 
         # =========================================================
-        # CAMPAIGN INFORMATION
+        # CURRENT CAMPAIGN INFORMATION
         # =========================================================
-        st.markdown("### 📞 Campaign Information")
-
+        st.markdown("### 📞 Current Campaign Information")
+        st.caption("Information about the customer's interaction with the current marketing campaign.")
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            contact = st.selectbox(
-                "Contact Method",
-                CONTACT_OPTIONS
-            )
+            contact = st.selectbox("Contact Method",
+                                   CONTACT_OPTIONS,
+                                   help="Communication method used to contact the customer.")
 
         with col2:
-            day = st.number_input(
-                "Last Contact Day",
-                min_value=1,
-                max_value=31,
-                value=15
-            )
+            day = st.number_input("Last Contact Day of the Month",
+                                  min_value=1,
+                                  max_value=31,
+                                  value=15,
+                                  help="Day of the month when the customer was last contacted.")
 
         with col3:
-            month = st.selectbox(
-                "Last Contact Month",
-                MONTH_OPTIONS
-            )
+            month = st.selectbox("Last Contact Month",
+                                 MONTH_OPTIONS,
+                                 help="Month when the customer was last contacted.")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            campaign = st.number_input(
-                "Contacts in Current Campaign",
-                min_value=1,
-                value=1
-            )
+            campaign = st.number_input("Contacts in Current Campaign",
+                                       min_value=1,
+                                       value=1,
+                                       help=("Number of contacts performed during this campaign and for this client (includes last contact)"))
 
         with col2:
-            pdays = st.number_input(
-                "Days Since Previous Contact",
-                min_value=-1,
-                value=-1,
-                step=1,
-                help="-1 means the customer was not previously contacted. 0 means the previous contact was on the same day."
-            )
+            pdays = st.number_input("Days Since Previous Contact",
+                                    min_value=-1,
+                                    value=-1,
+                                    step=1,
+                                    help="-1 means the customer was not previously contacted. 0 means the previous contact was on the same day.")
 
         with col3:
-            previous = st.number_input(
-                "Previous Campaign Contacts",
-                min_value=0,
-                value=0
-            )
+            previous = st.number_input("Previous Campaign Contacts",
+                                       min_value=0,
+                                       value=0,
+                                       help=("Number of contacts performed before this campaign and for this client."))
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            poutcome = st.selectbox(
-                "Previous Campaign Outcome",
-                POUTCOME_OPTIONS
-            )
-
-        # Keep remaining columns empty
+            poutcome = st.selectbox("Previous Campaign Outcome",
+                                    POUTCOME_OPTIONS,
+                                    help="Outcome of the previous marketing campaign for this customer.")
 
         st.divider()
 
-        submitted = st.form_submit_button(
-            "🔮 Predict Subscription",
-            type="primary",
-            use_container_width=True
-        )
+        submitted = st.form_submit_button("🔮 Generate Subscription Prediction",
+                                          type="primary",
+                                          use_container_width=True)
 
     # =============================================================
     # PREDICTION RESULT
@@ -327,55 +419,88 @@ with tab1:
             "poutcome": poutcome,
         }
 
-        with st.spinner("Scoring customer..."):
+        with st.spinner("Generating prediction..."):
             result = predict_one(record)
 
         if result:
-            prob = result["probability"]
+            probability = result["probability"]
             subscription = result["subscription"]
+            processing_time = result.get("processing_time_seconds")
 
+            st.divider()
 
-            res_col1, res_col2 = st.columns([1, 2])
+            st.markdown("### 📊 Prediction Result")
 
-            with res_col1:
+            result_col1, result_col2 = st.columns([1, 2])
+
+            with result_col1:
                 st.metric(
                     "Subscription Probability",
-                    f"{prob * 100:.1f}%"
+                    f"{probability * 100:.1f}%"
                 )
 
-            with res_col2:
-                st.progress(prob)
+            with result_col2:
+                st.write("**Predicted Likelihood**")
+                st.progress(probability)
 
+                if subscription == "Yes":
+                    st.success(
+                        "✅ Likely to Subscribe"
+                    )
+                else:
+                    st.warning(
+                        "❌ Unlikely to Subscribe"
+                    )
+
+            # -----------------------------------------------------
+            # RESULT INTERPRETATION
+            # -----------------------------------------------------
             if subscription == "Yes":
-                st.success(
-                    "✅ Likely to Subscribe — this customer has a high "
-                    "predicted likelihood of subscribing to the term deposit."
+                st.write(
+                    "The AI model predicts a higher likelihood that this customer will subscribe to the term deposit. "
+                    "The customer may be considered for prioritisation during the campaign."
                 )
             else:
-                st.warning(
-                    "❌ Unlikely to Subscribe — this customer has a low "
-                    "predicted likelihood based on the current profile."
+                st.write(
+                    "The AI model predicts a lower likelihood that this customer will subscribe to the term deposit. "
+                    "The result can be considered together with other customer information when planning campaign actions."
                 )
 
-            st.session_state.history.insert(0, {
-                "time": time.strftime("%H:%M:%S"),
-                "job": job,
-                "age": age,
-                "probability": prob,
-                "prediction": subscription,
-            })
+            if processing_time is not None:
+                st.caption(
+                    f"Model processing time: "
+                    f"{processing_time:.4f} seconds"
+                )
+
+            # -----------------------------------------------------
+            # SESSION HISTORY
+            # -----------------------------------------------------
+            st.session_state.history.insert(
+                0,
+                {
+                    "time": time.strftime("%H:%M:%S"),
+                    "job": job,
+                    "age": age,
+                    "probability": probability,
+                    "prediction": subscription,
+                }
+            )
 
     # =============================================================
     # RECENT PREDICTIONS
     # =============================================================
     if st.session_state.history:
-        st.divider()
-        st.write("#### Recent Predictions This Session")
 
+        st.divider()
+
+        st.markdown("### 🕘 Recent Predictions")
+
+        st.caption(
+            "Predictions generated during the current dashboard session."
+        )
         hist_df = pd.DataFrame(
             st.session_state.history[:10]
         )
-
         st.dataframe(
             hist_df,
             use_container_width=True,
@@ -383,16 +508,22 @@ with tab1:
         )
 
 # ---------------------------------------------------------------
-# TAB 2: BATCH PREDICTION
+# TAB 2: BATCH CUSTOMER PREDICTION
 # ---------------------------------------------------------------
 with tab2:
     st.subheader("📁 Batch Customer Prediction")
 
     st.write(
-        "Score multiple customers at once using the trained AI model. "
-        "Upload a CSV containing customer demographic, financial, and "
-        "campaign information to identify customers with a higher "
-        "likelihood of subscribing to a term deposit."
+        "Upload a CSV containing multiple customer records to generate "
+        "subscription probabilities using the deployed AI model. "
+        "Batch prediction helps marketing teams identify and prioritise "
+        "customers who are more likely to subscribe to a term deposit."
+    )
+
+    st.info(
+        "💡 Each customer record is sent through the API Gateway to the "
+        "AI Inference Service. The trained model returns a subscription "
+        "probability and predicted outcome for every valid record."
     )
 
     # =============================================================
@@ -400,16 +531,13 @@ with tab2:
     # =============================================================
     st.markdown("### 📤 Upload Customer Data")
 
-    st.info(
-        "Upload a CSV file containing customer records. "
-        "The model will generate a subscription probability and "
-        "prediction for each customer."
-    )
-
     uploaded_file = st.file_uploader(
         "Choose a CSV file",
         type=["csv"],
-        help="Upload a CSV containing the required customer features."
+        help=(
+            "Upload a CSV containing the 15 customer features "
+            "required by the prediction model."
+        )
     )
 
     st.caption(
@@ -421,64 +549,67 @@ with tab2:
     )
 
     # =============================================================
-    # LIVE MODE INFORMATION
-    # =============================================================
-    if not st.session_state.use_mock:
-        st.info(
-            "🟢 Live mode: Each customer is currently scored through "
-            "the API Gateway. Large files may take longer to process."
-        )
-
-    # =============================================================
-    # LOAD CSV
+    # CSV PROCESSING
     # =============================================================
     if uploaded_file is not None:
+
         try:
             df = pd.read_csv(uploaded_file)
 
-        except Exception as e:
-            st.error(f"❌ Could not read the CSV file: {e}")
+        except Exception as error:
+            st.error(
+                f"❌ Unable to read the CSV file: {error}"
+            )
             df = None
 
         if df is not None:
 
             # -----------------------------------------------------
-            # VALIDATE COLUMNS
+            # VALIDATE REQUIRED FEATURES
             # -----------------------------------------------------
             missing_cols = [
-                c for c in FEATURE_FIELDS
-                if c not in df.columns
+                column
+                for column in FEATURE_FIELDS
+                if column not in df.columns
             ]
 
             if missing_cols:
+
                 st.error(
-                    "❌ Missing required columns: "
-                    + ", ".join(missing_cols)
+                    "❌ The uploaded file is missing the following "
+                    "required columns:"
+                )
+
+                st.code(
+                    ", ".join(missing_cols)
                 )
 
                 st.warning(
-                    "Please check your CSV format and make sure all "
-                    "required customer fields are included."
+                    "Please check the column names in your CSV and "
+                    "upload the file again."
                 )
 
             else:
+
                 # -------------------------------------------------
-                # CUSTOMER ID CHECK
+                # CUSTOMER IDENTIFIER CHECK
                 # -------------------------------------------------
                 id_cols_present = [
-                    c for c in ID_FIELDS
-                    if c in df.columns
+                    column
+                    for column in ID_FIELDS
+                    if column in df.columns
                 ]
 
                 if not id_cols_present:
                     st.warning(
-                        "⚠️ No customer_id or phone_number column found. "
-                        "Predictions can still be generated, but the "
-                        "results may be harder to trace back to individual customers."
+                        "⚠️ No customer identifier column was found. "
+                        "Predictions can still be generated, but adding "
+                        "a customer ID or phone number makes the results "
+                        "easier to trace back to individual customers."
                     )
 
                 # -------------------------------------------------
-                # FILE SUMMARY
+                # DATA SUMMARY
                 # -------------------------------------------------
                 st.success(
                     f"✅ Customer data loaded successfully — "
@@ -489,7 +620,7 @@ with tab2:
 
                 st.caption(
                     "Review the uploaded customer records before "
-                    "running the prediction."
+                    "sending them to the AI prediction service."
                 )
 
                 st.dataframe(
@@ -499,20 +630,22 @@ with tab2:
                 )
 
                 st.caption(
-                    f"Showing the first {min(10, len(df)):,} "
-                    f"of {len(df):,} customer records."
+                    f"Showing the first "
+                    f"{min(10, len(df)):,} of "
+                    f"{len(df):,} customer records."
                 )
 
                 st.divider()
 
                 # -------------------------------------------------
-                # RUN PREDICTION
+                # GENERATE PREDICTIONS
                 # -------------------------------------------------
                 st.markdown("### 🔮 Generate Predictions")
 
                 st.write(
-                    "Run the AI model to calculate each customer's "
-                    "subscription probability and predicted outcome."
+                    "Run the deployed AI model to calculate a "
+                    "subscription probability and predicted outcome "
+                    "for each customer."
                 )
 
                 if st.button(
@@ -523,14 +656,16 @@ with tab2:
 
                     progress_bar = st.progress(
                         0.0,
-                        text="Preparing customer predictions..."
+                        text="Preparing customer records..."
                     )
 
                     def update_progress(frac):
                         progress_bar.progress(
                             frac,
-                            text=f"Scoring customers... "
-                                 f"{int(frac * 100)}%"
+                            text=(
+                                f"Generating predictions... "
+                                f"{int(frac * 100)}%"
+                            )
                         )
 
                     results_df = predict_many(
@@ -541,7 +676,10 @@ with tab2:
                     progress_bar.empty()
 
                     if results_df is not None:
-                        st.session_state.last_batch_results = results_df
+
+                        st.session_state.last_batch_results = (
+                            results_df
+                        )
 
                         st.success(
                             f"✅ Prediction completed successfully "
@@ -549,7 +687,7 @@ with tab2:
                         )
 
     # =============================================================
-    # RESULTS
+    # DISPLAY RESULTS
     # =============================================================
     if "last_batch_results" in st.session_state:
 
@@ -557,46 +695,69 @@ with tab2:
 
         st.divider()
 
-        st.markdown("### 📈 Prediction Results")
+        st.markdown("### 📈 Batch Prediction Results")
 
         st.write(
-            "Use the results below to identify customers with a "
-            "higher predicted likelihood of subscribing."
+            "Review the AI-generated results to identify customers "
+            "with higher predicted likelihoods of subscribing."
         )
 
         # ---------------------------------------------------------
-        # KPI CARDS
+        # KPI SUMMARY
         # ---------------------------------------------------------
         k1, k2, k3 = st.columns(3)
 
-        subscribe_rate = (
-            results_df["prediction"] == "yes"
-        ).mean()
+        total_customers = len(results_df)
 
-        high_confidence = int(
-            (results_df["probability"] > 0.7).sum()
+        predicted_yes = int(
+            (
+                results_df["prediction"]
+                .astype(str)
+                .str.lower()
+                == "yes"
+            ).sum()
+        )
+
+        subscription_rate = (
+            predicted_yes / total_customers
+            if total_customers > 0
+            else 0
+        )
+
+        high_potential = int(
+            (
+                results_df["probability"] >= 0.70
+            ).sum()
         )
 
         k1.metric(
             "Customers Scored",
-            f"{len(results_df):,}"
+            f"{total_customers:,}"
         )
 
         k2.metric(
-            "Predicted Subscription Rate",
-            f"{subscribe_rate * 100:.1f}%"
+            "Predicted Subscribers",
+            f"{predicted_yes:,}"
         )
 
         k3.metric(
             "High-Potential Customers",
-            f"{high_confidence:,}",
-            help="Customers with a predicted subscription probability above 70%."
+            f"{high_potential:,}",
+            help=(
+                "Customers with a predicted subscription probability "
+                "of 70% or higher."
+            )
+        )
+
+        st.caption(
+            f"Predicted subscription rate: "
+            f"{subscription_rate * 100:.1f}%"
         )
 
         st.divider()
 
         # ---------------------------------------------------------
-        # FILTER / SORT
+        # EXPLORE RESULTS
         # ---------------------------------------------------------
         st.markdown("### 🔍 Explore Results")
 
@@ -604,6 +765,7 @@ with tab2:
             "Sort results by",
             [
                 "Highest probability first",
+                "Lowest probability first",
                 "Original order"
             ],
             horizontal=True
@@ -612,10 +774,32 @@ with tab2:
         display_df = results_df.copy()
 
         if sort_choice == "Highest probability first":
+
             display_df = display_df.sort_values(
                 "probability",
                 ascending=False
             )
+
+        elif sort_choice == "Lowest probability first":
+
+            display_df = display_df.sort_values(
+                "probability",
+                ascending=True
+            )
+
+        # ---------------------------------------------------------
+        # FORMAT PROBABILITY FOR DISPLAY
+        # ---------------------------------------------------------
+        display_df["probability"] = (
+            display_df["probability"] * 100
+        ).round(1)
+
+        display_df = display_df.rename(
+            columns={
+                "probability": "Subscription Probability (%)",
+                "prediction": "Predicted Subscription"
+            }
+        )
 
         st.dataframe(
             display_df,
@@ -624,9 +808,16 @@ with tab2:
         )
 
         # ---------------------------------------------------------
-        # DOWNLOAD
+        # DOWNLOAD RESULTS
         # ---------------------------------------------------------
         st.divider()
+
+        st.markdown("### 📥 Export Results")
+
+        st.write(
+            "Download the prediction results as a CSV file for "
+            "further analysis or campaign planning."
+        )
 
         csv_bytes = display_df.to_csv(
             index=False
@@ -635,7 +826,7 @@ with tab2:
         st.download_button(
             "⬇️ Download Prediction Results",
             data=csv_bytes,
-            file_name="predictions_results.csv",
+            file_name="bank_marketing_predictions.csv",
             mime="text/csv",
             use_container_width=True
         )
@@ -644,40 +835,234 @@ with tab2:
 # TAB 3: ANALYST VIEW
 # ---------------------------------------------------------------
 with tab3:
-    st.subheader("Campaign performance overview")
+    st.subheader("📈 Campaign Analytics")
 
-    if st.session_state.use_mock:
-        st.caption("Mock mode -- showing sample data, not real logged predictions.")
-        sample = pd.DataFrame({
-            "job": ["management", "technician", "blue-collar", "admin.", "retired"],
-            "conversion_rate": [0.14, 0.11, 0.08, 0.13, 0.22],
-        })
-        total_predictions = 1204
-        subscribe_rate = 0.123
-        by_job = sample
-    else:
+    st.write(
+        "Review historical prediction results to understand customer "
+        "subscription patterns and campaign performance. The analytics "
+        "are based on prediction records logged by the system."
+    )
+
+    st.info(
+        "💡 This view retrieves historical prediction records through "
+        "the API Gateway and summarises the results for campaign analysis."
+    )
+
+    # =============================================================
+    # FETCH HISTORICAL RESULTS
+    # =============================================================
+    with st.spinner("Loading campaign analytics..."):
+
         try:
-            with st.spinner("Fetching results from the Gateway..."):
-                raw_results = call_results_api()
+            raw_results = call_results_api()
+
             records_df = pd.DataFrame(raw_results)
+
+        except requests.exceptions.ConnectionError:
+            st.error(
+                "❌ Unable to connect to the API Gateway. "
+                "Please make sure the Gateway and Database Service "
+                "are running."
+            )
+
+            records_df = pd.DataFrame()
+
+        except requests.exceptions.Timeout:
+            st.error(
+                "❌ The request timed out while retrieving "
+                "historical prediction records."
+            )
+
+            records_df = pd.DataFrame()
+
+        except Exception as error:
+            st.error(
+                f"❌ Unable to load campaign analytics: {error}"
+            )
+
+            records_df = pd.DataFrame()
+
+    # =============================================================
+    # ANALYTICS
+    # =============================================================
+    if not records_df.empty:
+
+        # ---------------------------------------------------------
+        # NORMALISE SUBSCRIPTION RESULT
+        # ---------------------------------------------------------
+        if "prediction" in records_df.columns:
+
+            subscription_values = (
+                records_df["prediction"]
+                .astype(str)
+                .str.lower()
+            )
+
+            predicted_subscribers = int(
+                (subscription_values == "yes").sum()
+            )
+
             total_predictions = len(records_df)
-            subscribe_rate = (records_df["prediction"] == "yes").mean() if len(records_df) else 0
+
+            subscription_rate = (
+                predicted_subscribers / total_predictions
+                if total_predictions > 0
+                else 0
+            )
+
+        else:
+            predicted_subscribers = 0
+            total_predictions = len(records_df)
+            subscription_rate = 0
+
+        # =========================================================
+        # KPI SUMMARY
+        # =========================================================
+        st.markdown("### 📊 Campaign Summary")
+
+        kpi1, kpi2, kpi3 = st.columns(3)
+
+        kpi1.metric(
+            "Total Predictions",
+            f"{total_predictions:,}"
+        )
+
+        kpi2.metric(
+            "Predicted Subscribers",
+            f"{predicted_subscribers:,}"
+        )
+
+        kpi3.metric(
+            "Predicted Subscription Rate",
+            f"{subscription_rate * 100:.1f}%"
+        )
+
+        st.divider()
+
+        # =========================================================
+        # PERFORMANCE BY JOB
+        # =========================================================
+        if "job" in records_df.columns:
+
+            st.markdown(
+                "### 👥 Predicted Subscription Rate by Job"
+            )
+
+            st.caption(
+                "Percentage of customers predicted to subscribe "
+                "within each job category."
+            )
+
+            records_df["subscribed"] = (
+                records_df["prediction"]
+                .astype(str)
+                .str.lower()
+                == "yes"
+            )
+
             by_job = (
-                records_df.assign(subscribed=records_df["prediction"] == "yes")
-                .groupby("job")["subscribed"].mean()
+                records_df
+                .groupby("job")["subscribed"]
+                .mean()
                 .reset_index()
-                .rename(columns={"subscribed": "conversion_rate"})
-            ) if "job" in records_df.columns else pd.DataFrame()
-        except Exception as e:
-            st.error(f"Could not load analytics from the Gateway: {e}")
-            total_predictions, subscribe_rate, by_job = 0, 0, pd.DataFrame()
+            )
 
-    kpi1, kpi2 = st.columns(2)
-    kpi1.metric("Total predictions logged", f"{total_predictions:,}")
-    kpi2.metric("Overall subscription rate", f"{subscribe_rate*100:.1f}%")
+            by_job["conversion_rate"] = (
+                by_job["subscribed"] * 100
+            ).round(1)
 
-    if not by_job.empty:
-        st.write("#### Conversion rate by job type")
-        st.bar_chart(by_job.set_index("job"))
+            by_job = by_job.drop(
+                columns=["subscribed"]
+            )
+
+            by_job = by_job.rename(
+                columns={
+                    "conversion_rate":
+                    "Predicted Subscription Rate (%)"
+                }
+            )
+
+            st.bar_chart(
+                by_job.set_index("job")
+            )
+
+        else:
+            st.info(
+                "Job information is not available in the "
+                "historical prediction records."
+            )
+
+        st.divider()
+
+        # =========================================================
+        # PREDICTION PROBABILITY DISTRIBUTION
+        # =========================================================
+        if "probability" in records_df.columns:
+
+            st.markdown(
+                "### 🎯 Prediction Probability Distribution"
+            )
+
+            st.caption(
+                "Distribution of predicted probabilities generated "
+                "by the AI model."
+            )
+
+            probability_df = records_df[
+                ["probability"]
+            ].copy()
+
+            probability_df["probability"] = (
+                probability_df["probability"] * 100
+            )
+
+            probability_df = probability_df.rename(
+                columns={
+                    "probability":
+                    "Subscription Probability (%)"
+                }
+            )
+
+            st.bar_chart(
+                probability_df
+                .round(0)
+                .value_counts()
+                .sort_index()
+            )
+
+        # =========================================================
+        # RECENT LOGGED PREDICTIONS
+        # =========================================================
+        st.divider()
+
+        st.markdown(
+            "### 🕘 Recent Prediction Records"
+        )
+
+        st.caption(
+            "Most recently logged predictions retrieved from "
+            "the Database Service."
+        )
+
+        recent_records = records_df.head(10)
+
+        st.dataframe(
+            recent_records,
+            use_container_width=True,
+            hide_index=True
+        )
+
     else:
-        st.info("No data to chart yet.")
+
+        # =========================================================
+        # NO DATA
+        # =========================================================
+        st.info(
+            "ℹ️ No historical prediction records are available yet."
+        )
+
+        st.write(
+            "Generate predictions from the Customer Prediction or "
+            "Batch Customer Prediction tabs. Once predictions are "
+            "logged by the Database Service, they will appear here."
+        )
