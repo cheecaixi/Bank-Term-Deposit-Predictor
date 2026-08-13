@@ -36,9 +36,18 @@ class CustomerPredictModel(BaseModel):
     job: str = Field(..., example="management")
     marital: str = Field(..., example="married")
     education: str = Field(..., example="tertiary")
-    balance: int = Field(..., example=1500)
-    duration: int = Field(..., example=200)
-
+    default: str = Field(..., example="no")
+    balance: float = Field(..., example=1500)
+    housing: str = Field(..., example="yes")
+    loan: str = Field(..., example="no")
+    contact: str = Field(..., example="cellular")
+    day: int = Field(..., example=15)
+    month: str = Field(..., example="may")
+    campaign: int = Field(..., example=1)
+    pdays: int = Field(..., example=-1)
+    previous: int = Field(..., example=0)
+    poutcome: str = Field(..., example="unknown")
+    
 class CustomerUpdateModel(BaseModel):
     age: Optional[int] = Field(None, example=36)
     job: Optional[str] = Field(None, example="technician")
