@@ -1,0 +1,32 @@
+[33m12a96f0[m[33m ([m[1;31morigin/Su-Myat-Mon[m[33m, [m[1;31morigin/MyaPhuPwintSoe[m[33m, [m[1;31morigin/Chee-Cai-Xi[m[33m, [m[1;31morigin/Amanda-Jane-Lobo[m[33m)[m Initial commit
+[33m9872811[m Enhance README with architecture and workflow details
+[33me8ad08c[m Update README with project goals and user details
+[33m2796132[m Adding Dataset
+[33m06da22f[m Delete Dataset
+[33mb536540[m Adding Bank Marketing Dataset
+[33m917f455[m Delete Bank_Marketing_Dataset.csv
+[33m187a4fa[m Adding Dataset
+[33maa5072b[m Delete Data
+[33mf5af055[m dataset upload
+[33m4c6d35c[m initial system architecture diagram updated to readme
+[33m318f121[m train_model.py
+[33mc1726c3[m initial system architecture update
+[33me83718e[m train_models.py
+[33mfd633b0[m Merge branch 'main' of https://github.com/cheecaixi/Bank-Term-Deposit-Predictor into Su-Myat-Mon
+[33m6c593f0[m Updated project files
+[33m9dcf1da[m Updated model training and evaluation
+[33md279794[m api_gateway folder: add gateway routes, Dockerfile, and k8s config
+[33m0e5871a[m Merge pull request #1 from cheecaixi/MyaPhuPwintSoe
+[33m7f31d55[m Updated model training and evaluation
+[33m2aa51c7[m deleted unnecessary folder
+[33m6b5e467[m Merge pull request #2 from cheecaixi/Amanda-Jane-Lobo
+[33md259c2c[m updated requirement.txt
+[33m6f04b8f[m Delete src directory
+[33m9fec4f6[m Merge branch 'Amanda-Jane-Lobo' of https://github.com/cheecaixi/Bank-Term-Deposit-Predictor
+[33m5acfbef[m Merge branch 'main' of https://github.com/cheecaixi/Bank-Term-Deposit-Predictor
+[33mc0f36a4[m Merge branch 'main' of https://github.com/cheecaixi/Bank-Term-Deposit-Predictor into Su-Myat-Mon
+[33m49248e4[m update put request and delete request
+[33m5b2166b[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Merge pull request #4 from cheecaixi/MyaPhuPwintSoe
+[33m45dde06[m update
+[33m9f8dd76[m Remove large model file
+[33m872eec5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mSu-Myat-Mon[m[33m)[m Ignore large model files
