@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Dict, Any
+from typing import Optional
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -77,11 +77,6 @@ def health_check():
 # ----------------------------------------------------
 @app.post("/api/predict")
 async def predict_subscription(customer_data: CustomerPredictModel):
-    """
-    Receives customer features from Member C (Dashboard),
-    forwards to Member A (AI Inference Service),
-    and asynchronously persists the result to Member D (Database Service).
-    """
     async with httpx.AsyncClient() as client:
         payload = customer_data.dict()
 
@@ -103,20 +98,18 @@ async def predict_subscription(customer_data: CustomerPredictModel):
         # Step B: Persist prediction log to Member D (Database Service)
         try:
             db_payload = {
-                "customer_input": payload,
+                **payload,
                 "prediction": prediction_result.get("prediction"),
                 "probability": prediction_result.get("probability")
             }
             await client.post(
-                f"{DATABASE_URL}/records",
+                f"{DATABASE_URL}/customers",
                 json=db_payload,
                 timeout=3.0
             )
         except httpx.RequestError:
-            # Non-blocking warning log if DB persistence fails
             print("Warning: Failed to persist record to Member D Database Service")
 
-        # Step C: Return result to Member C (Dashboard)
         return prediction_result
 
 
@@ -125,13 +118,10 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 # ----------------------------------------------------
 @app.get("/api/results")
 async def fetch_historical_results():
-    """
-    Fetches all historical prediction records from Member D (Database Service).
-    """
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                f"{DATABASE_URL}/historical-data",
+                f"{DATABASE_URL}/customers",
                 timeout=TIMEOUT_SECONDS
             )
             response.raise_for_status()
@@ -148,15 +138,11 @@ async def fetch_historical_results():
 # ----------------------------------------------------
 @app.put("/api/customers/{customer_id}")
 async def update_customer(customer_id: str, updated_data: CustomerUpdateModel):
-    """
-    Receives updated customer records from Member C (Dashboard)
-    and forwards the PUT request to Member D (Database Service).
-    """
     async with httpx.AsyncClient() as client:
         try:
             payload = updated_data.dict(exclude_unset=True)
             response = await client.put(
-                f"{DATABASE_URL}/historical-data/{customer_id}",
+                f"{DATABASE_URL}/customers/{customer_id}",
                 json=payload,
                 timeout=TIMEOUT_SECONDS
             )
@@ -179,14 +165,10 @@ async def update_customer(customer_id: str, updated_data: CustomerUpdateModel):
 # ----------------------------------------------------
 @app.delete("/api/customers/{customer_id}")
 async def delete_customer(customer_id: str):
-    """
-    Receives a customer deletion request from Member C (Dashboard)
-    and forwards the DELETE request to Member D (Database Service).
-    """
     async with httpx.AsyncClient() as client:
         try:
             response = await client.delete(
-                f"{DATABASE_URL}/historical-data/{customer_id}",
+                f"{DATABASE_URL}/customers/{customer_id}",
                 timeout=TIMEOUT_SECONDS
             )
             response.raise_for_status()
@@ -208,9 +190,6 @@ async def delete_customer(customer_id: str):
 # ----------------------------------------------------
 @app.get("/api/logs")
 async def fetch_system_logs():
-    """
-    Fetches system latency and request logs from Member D (Monitoring Service).
-    """
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
