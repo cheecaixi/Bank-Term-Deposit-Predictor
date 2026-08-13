@@ -81,11 +81,6 @@ def health_check():
 # ----------------------------------------------------
 @app.post("/api/predict")
 async def predict_subscription(customer_data: CustomerPredictModel):
-    """
-    Receives customer features from Member C (Dashboard),
-    forwards to Member A (AI Inference Service),
-    and asynchronously persists the result to Member D (Database Service).
-    """
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         inference_payload = {
@@ -191,7 +186,6 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 detail=f"Member D (Database Service) unreachable: {exc}"
             )
 
-        # Step C: Return result to Member C (Dashboard)
         return prediction_result
 
 
@@ -200,9 +194,6 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 # ----------------------------------------------------
 @app.get("/api/results")
 async def fetch_historical_results():
-    """
-    Fetches all historical prediction records from Member D (Database Service).
-    """
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -288,9 +279,6 @@ async def delete_customer(customer_id: int):
 # ----------------------------------------------------
 @app.get("/api/logs")
 async def fetch_system_logs():
-    """
-    Fetches system latency and request logs from Member D (Monitoring Service).
-    """
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
