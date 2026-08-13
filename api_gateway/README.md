@@ -1,8 +1,7 @@
 
-```markdown
-# 🌐 API Gateway Microservice (Member B)
+## API Gateway Microservice (Member B)
 
-## 📌 Overview
+## Overview
 The **API Gateway** serves as the central entry point and orchestrator for the Bank Term Deposit Predictor platform. It manages routing, incoming data validation, CORS configuration, error handling, and security between the **Dashboard Frontend (Member C)**, **AI Inference Engine (Member A)**, and **Database/Monitoring Services (Member D)**.
 
 ---
@@ -108,5 +107,3 @@ kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 
 ```
-
-
