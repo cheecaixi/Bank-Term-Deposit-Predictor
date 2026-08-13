@@ -23,6 +23,6 @@ spec:
         - name: INFERENCE_SERVICE_URL
           value: "http://ai-inference-service:8000"
         - name: DATABASE_SERVICE_URL
-          value: "http://database-service:5000"
+          value: "http://database-service:8000"
         - name: MONITORING_SERVICE_URL
           value: "http://monitoring-service:5001"
