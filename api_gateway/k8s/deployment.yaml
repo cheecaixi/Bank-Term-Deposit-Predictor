@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway-deployment
+  labels:
+    app: api-gateway
+spec:
+  replicas: 2                       # Keeps 2 pods running for high availability
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: myaphupwintsoe/api-gateway:v1  # Your public Docker Hub image
+        ports:
+        - containerPort: 8080
+        env:                        # Injects microservice internal DNS endpoints
+        - name: INFERENCE_SERVICE_URL
+          value: "http://ai-inference-service:8000"
+        - name: DATABASE_SERVICE_URL
+          value: "http://database-service:5000"
+        - name: MONITORING_SERVICE_URL
+          value: "http://monitoring-service:5001"
