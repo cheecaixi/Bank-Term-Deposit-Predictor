@@ -167,7 +167,7 @@ st.title("🏦 Bank Marketing AI Dashboard")
 mode_badge = "🧪 Mock mode -- no backend needed" if st.session_state.use_mock else f"🟢 Live -- {st.session_state.gateway_url}"
 st.caption(mode_badge)
 
-tab1, tab2, tab3 = st.tabs(["🧑 Customer Prediction", "📁 Batch Prediction", "📈 Analyst View"])
+tab1, tab2, tab3 = st.tabs(["🧑 Customer Prediction", "📁 Batch Customer Prediction", "📈 Analyst View"])
 
 # ---------------------------------------------------------------
 # TAB 1: SINGLE PREDICTION (Customer Prediction)
@@ -385,77 +385,258 @@ with tab1:
 # TAB 2: BATCH PREDICTION
 # ---------------------------------------------------------------
 with tab2:
-    st.subheader("Predict for a whole list of customers")
+    st.subheader("📁 Batch Customer Prediction")
+
     st.write(
-        "Upload a CSV exported from the bank's system. Required columns: "
-        + ", ".join(FEATURE_FIELDS)
-        + ". Optional: `customer_id`, `phone_number` (carried through to results, never sent to the model)."
+        "Score multiple customers at once using the trained AI model. "
+        "Upload a CSV containing customer demographic, financial, and "
+        "campaign information to identify customers with a higher "
+        "likelihood of subscribing to a term deposit."
     )
 
+    # =============================================================
+    # UPLOAD SECTION
+    # =============================================================
+    st.markdown("### 📤 Upload Customer Data")
+
+    st.info(
+        "Upload a CSV file containing customer records. "
+        "The model will generate a subscription probability and "
+        "prediction for each customer."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Choose a CSV file",
+        type=["csv"],
+        help="Upload a CSV containing the required customer features."
+    )
+
+    st.caption(
+        "Required fields: Age, Job, Marital Status, Education, "
+        "Credit Default, Account Balance, Housing Loan, Personal Loan, "
+        "Contact Method, Last Contact Day, Last Contact Month, "
+        "Contacts in Current Campaign, Days Since Previous Contact, "
+        "Previous Campaign Contacts, and Previous Campaign Outcome."
+    )
+
+    # =============================================================
+    # LIVE MODE INFORMATION
+    # =============================================================
     if not st.session_state.use_mock:
-        st.info("Live mode has no batch endpoint yet -- rows are scored one at a time via /api/predict. This will be slower for large files.")
+        st.info(
+            "🟢 Live mode: Each customer is currently scored through "
+            "the API Gateway. Large files may take longer to process."
+        )
 
-    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
-
+    # =============================================================
+    # LOAD CSV
+    # =============================================================
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
+
         except Exception as e:
-            st.error(f"Could not read that file as CSV: {e}")
+            st.error(f"❌ Could not read the CSV file: {e}")
             df = None
 
         if df is not None:
-            missing_cols = [c for c in FEATURE_FIELDS if c not in df.columns]
+
+            # -----------------------------------------------------
+            # VALIDATE COLUMNS
+            # -----------------------------------------------------
+            missing_cols = [
+                c for c in FEATURE_FIELDS
+                if c not in df.columns
+            ]
+
             if missing_cols:
-                st.error("Missing required columns: " + ", ".join(missing_cols))
+                st.error(
+                    "❌ Missing required columns: "
+                    + ", ".join(missing_cols)
+                )
+
+                st.warning(
+                    "Please check your CSV format and make sure all "
+                    "required customer fields are included."
+                )
+
             else:
-                id_cols_present = [c for c in ID_FIELDS if c in df.columns]
+                # -------------------------------------------------
+                # CUSTOMER ID CHECK
+                # -------------------------------------------------
+                id_cols_present = [
+                    c for c in ID_FIELDS
+                    if c in df.columns
+                ]
+
                 if not id_cols_present:
-                    st.warning("No customer_id or phone_number column found -- results won't be traceable back to a specific customer.")
+                    st.warning(
+                        "⚠️ No customer_id or phone_number column found. "
+                        "Predictions can still be generated, but the "
+                        "results may be harder to trace back to individual customers."
+                    )
 
-                st.success(f"Loaded {len(df)} rows.")
-                with st.expander("Preview uploaded data", expanded=True):
-                    st.dataframe(df.head(10), use_container_width=True)
+                # -------------------------------------------------
+                # FILE SUMMARY
+                # -------------------------------------------------
+                st.success(
+                    f"✅ Customer data loaded successfully — "
+                    f"{len(df):,} records ready for prediction."
+                )
 
-                if st.button("🔮 Run batch prediction", type="primary"):
-                    progress_bar = st.progress(0.0, text="Scoring customers...")
+                st.markdown("### 👀 Data Preview")
+
+                st.caption(
+                    "Review the uploaded customer records before "
+                    "running the prediction."
+                )
+
+                st.dataframe(
+                    df.head(10),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                st.caption(
+                    f"Showing the first {min(10, len(df)):,} "
+                    f"of {len(df):,} customer records."
+                )
+
+                st.divider()
+
+                # -------------------------------------------------
+                # RUN PREDICTION
+                # -------------------------------------------------
+                st.markdown("### 🔮 Generate Predictions")
+
+                st.write(
+                    "Run the AI model to calculate each customer's "
+                    "subscription probability and predicted outcome."
+                )
+
+                if st.button(
+                    "🔮 Run Batch Prediction",
+                    type="primary",
+                    use_container_width=True
+                ):
+
+                    progress_bar = st.progress(
+                        0.0,
+                        text="Preparing customer predictions..."
+                    )
 
                     def update_progress(frac):
-                        progress_bar.progress(frac, text=f"Scoring customers... {int(frac*100)}%")
+                        progress_bar.progress(
+                            frac,
+                            text=f"Scoring customers... "
+                                 f"{int(frac * 100)}%"
+                        )
 
-                    results_df = predict_many(df, progress_callback=update_progress)
+                    results_df = predict_many(
+                        df,
+                        progress_callback=update_progress
+                    )
+
                     progress_bar.empty()
 
                     if results_df is not None:
                         st.session_state.last_batch_results = results_df
-                        st.success("Done!")
 
+                        st.success(
+                            f"✅ Prediction completed successfully "
+                            f"for {len(results_df):,} customers."
+                        )
+
+    # =============================================================
+    # RESULTS
+    # =============================================================
     if "last_batch_results" in st.session_state:
+
         results_df = st.session_state.last_batch_results
 
         st.divider()
-        st.write("#### Results")
 
+        st.markdown("### 📈 Prediction Results")
+
+        st.write(
+            "Use the results below to identify customers with a "
+            "higher predicted likelihood of subscribing."
+        )
+
+        # ---------------------------------------------------------
+        # KPI CARDS
+        # ---------------------------------------------------------
         k1, k2, k3 = st.columns(3)
-        subscribe_rate = (results_df["prediction"] == "yes").mean()
-        k1.metric("Customers scored", len(results_df))
-        k2.metric("Predicted subscription rate", f"{subscribe_rate*100:.1f}%")
-        k3.metric("High-confidence leads (>70%)", int((results_df["probability"] > 0.7).sum()))
 
-        sort_choice = st.radio("Sort by", ["Highest probability first", "Original order"], horizontal=True)
+        subscribe_rate = (
+            results_df["prediction"] == "yes"
+        ).mean()
+
+        high_confidence = int(
+            (results_df["probability"] > 0.7).sum()
+        )
+
+        k1.metric(
+            "Customers Scored",
+            f"{len(results_df):,}"
+        )
+
+        k2.metric(
+            "Predicted Subscription Rate",
+            f"{subscribe_rate * 100:.1f}%"
+        )
+
+        k3.metric(
+            "High-Potential Customers",
+            f"{high_confidence:,}",
+            help="Customers with a predicted subscription probability above 70%."
+        )
+
+        st.divider()
+
+        # ---------------------------------------------------------
+        # FILTER / SORT
+        # ---------------------------------------------------------
+        st.markdown("### 🔍 Explore Results")
+
+        sort_choice = st.radio(
+            "Sort results by",
+            [
+                "Highest probability first",
+                "Original order"
+            ],
+            horizontal=True
+        )
+
         display_df = results_df.copy()
+
         if sort_choice == "Highest probability first":
-            display_df = display_df.sort_values("probability", ascending=False)
+            display_df = display_df.sort_values(
+                "probability",
+                ascending=False
+            )
 
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True
+        )
 
-        csv_bytes = display_df.to_csv(index=False).encode("utf-8")
+        # ---------------------------------------------------------
+        # DOWNLOAD
+        # ---------------------------------------------------------
+        st.divider()
+
+        csv_bytes = display_df.to_csv(
+            index=False
+        ).encode("utf-8")
+
         st.download_button(
-            "⬇️ Download results as CSV",
+            "⬇️ Download Prediction Results",
             data=csv_bytes,
             file_name="predictions_results.csv",
             mime="text/csv",
-            use_container_width=True,
+            use_container_width=True
         )
 
 # ---------------------------------------------------------------
