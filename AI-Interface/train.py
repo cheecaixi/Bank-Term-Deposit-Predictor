@@ -36,15 +36,16 @@ from cleaning import load_data, clean_data
 from features import prepare_features, build_preprocessor
 
 
-RANDOM_STATE = 42
-
-MODEL_FOLDER = "models"
-
-MODEL_PATH = os.path.join(
-    MODEL_FOLDER,
-    "best_model.joblib"
+from config import (
+    RANDOM_STATE,
+    MODEL_PATH,
+    AI_INTERFACE_DIR
 )
 
+MODEL_FOLDER = os.path.join(
+    AI_INTERFACE_DIR,
+    "models"
+)
 
 def split_dataset(X, y):
     """

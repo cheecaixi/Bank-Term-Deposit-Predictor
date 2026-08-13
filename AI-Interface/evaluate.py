@@ -17,28 +17,26 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
     ConfusionMatrixDisplay,
-    RocCurveDisplay
+    RocCurveDisplay,
+    PrecisionRecallDisplay
 )
 
 # Import project functions
 from cleaning import load_data, clean_data
 from features import prepare_features
 
-
-# Configuration
-RANDOM_STATE = 42
-
-# Final classification threshold
-THRESHOLD = 0.20
-
-# Saved model location
-MODEL_PATH = os.path.join(
-    "models",
-    "best_model.joblib"
+# Import shared configuration
+from config import (
+    RANDOM_STATE,
+    PREDICTION_THRESHOLD,
+    MODEL_PATH,
+    AI_INTERFACE_DIR
 )
+
 
 # Folder for evaluation results
 RESULTS_FOLDER = os.path.join(
+    AI_INTERFACE_DIR,
     "results",
     "evaluation"
 )
@@ -46,8 +44,13 @@ RESULTS_FOLDER = os.path.join(
 
 def load_model():
     """
-    Load the trained machine learning model.
+    Load the saved final machine learning model.
     """
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"Model file not found: {MODEL_PATH}"
+        )
 
     model = joblib.load(
         MODEL_PATH
@@ -61,9 +64,9 @@ def load_model():
 
 def prepare_test_data():
     """
-    Load and prepare the dataset.
+    Load, clean, and prepare the dataset.
 
-    The same train test split used during model training
+    The same train and test split used during training
     is recreated using the same random state.
     """
 
@@ -73,11 +76,16 @@ def prepare_test_data():
     # Clean dataset
     df = clean_data(df)
 
-    # Prepare features and target
+    # Separate features and target
     X, y = prepare_features(df)
 
-    # Recreate the same train test split
-    X_train, X_test, y_train, y_test = train_test_split(
+    # Recreate the same train and test split
+    (
+        X_train,
+        X_test,
+        y_train,
+        y_test
+    ) = train_test_split(
         X,
         y,
         test_size=0.20,
@@ -104,44 +112,39 @@ def calculate_metrics(
 
     # Convert probability into class prediction
     y_pred = (
-        y_probability >= THRESHOLD
+        y_probability >= PREDICTION_THRESHOLD
     ).astype(int)
 
     # Calculate evaluation metrics
-    accuracy = accuracy_score(
-        y_test,
-        y_pred
-    )
-
-    precision = precision_score(
-        y_test,
-        y_pred,
-        zero_division=0
-    )
-
-    recall = recall_score(
-        y_test,
-        y_pred,
-        zero_division=0
-    )
-
-    f1 = f1_score(
-        y_test,
-        y_pred,
-        zero_division=0
-    )
-
-    roc_auc = roc_auc_score(
-        y_test,
-        y_probability
-    )
-
     results = {
-        "Accuracy": accuracy,
-        "Precision": precision,
-        "Recall": recall,
-        "F1 Score": f1,
-        "ROC AUC": roc_auc
+
+        "Accuracy": accuracy_score(
+            y_test,
+            y_pred
+        ),
+
+        "Precision": precision_score(
+            y_test,
+            y_pred,
+            zero_division=0
+        ),
+
+        "Recall": recall_score(
+            y_test,
+            y_pred,
+            zero_division=0
+        ),
+
+        "F1 Score": f1_score(
+            y_test,
+            y_pred,
+            zero_division=0
+        ),
+
+        "ROC AUC": roc_auc_score(
+            y_test,
+            y_probability
+        )
     }
 
     return (
@@ -157,7 +160,7 @@ def print_results(
     y_pred
 ):
     """
-    Display evaluation results.
+    Display evaluation results in the terminal.
     """
 
     print()
@@ -166,7 +169,10 @@ def print_results(
     print("=" * 60)
 
     print()
-    print(f"Threshold: {THRESHOLD}")
+    print(
+        f"Threshold: "
+        f"{PREDICTION_THRESHOLD}"
+    )
 
     print()
 
@@ -223,6 +229,13 @@ def save_metrics(results):
 
     results_df = pd.DataFrame(
         [results]
+    )
+
+    # Add threshold to saved results
+    results_df.insert(
+        0,
+        "Threshold",
+        PREDICTION_THRESHOLD
     )
 
     file_path = os.path.join(
@@ -332,6 +345,50 @@ def create_roc_curve(
     print(file_path)
 
 
+def create_precision_recall_curve(
+    y_test,
+    y_probability
+):
+    """
+    Create and save the precision recall curve.
+
+    This is especially useful because the target
+    variable is imbalanced.
+    """
+
+    os.makedirs(
+        RESULTS_FOLDER,
+        exist_ok=True
+    )
+
+    PrecisionRecallDisplay.from_predictions(
+        y_test,
+        y_probability
+    )
+
+    plt.title(
+        "Precision Recall Curve"
+    )
+
+    plt.tight_layout()
+
+    file_path = os.path.join(
+        RESULTS_FOLDER,
+        "precision_recall_curve.png"
+    )
+
+    plt.savefig(
+        file_path,
+        dpi=300
+    )
+
+    plt.close()
+
+    print()
+    print("Precision recall curve saved:")
+    print(file_path)
+
+
 def main():
 
     print("=" * 60)
@@ -366,7 +423,7 @@ def main():
         y_pred
     )
 
-    # Save evaluation results
+    # Save evaluation metrics
     save_metrics(
         results
     )
@@ -383,10 +440,20 @@ def main():
         y_probability
     )
 
+    # Create precision recall curve
+    create_precision_recall_curve(
+        y_test,
+        y_probability
+    )
+
     print()
     print("=" * 60)
     print("EVALUATION COMPLETED SUCCESSFULLY")
     print("=" * 60)
+
+    print()
+    print("Results saved in:")
+    print(RESULTS_FOLDER)
 
 
 if __name__ == "__main__":
