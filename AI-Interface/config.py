@@ -1,14 +1,51 @@
-# Path to the dataset
-DATA_PATH = "data/Bank_Marketing_Dataset.csv"
+import os
 
 
-# Path where the trained model will be saved
-MODEL_PATH = "models/bank_model.joblib"
+# Folder containing config.py
+AI_INTERFACE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
 
 
-# 20% of the data will be used for testing
-TEST_SIZE = 0.2
+# Main project folder
+PROJECT_ROOT = os.path.dirname(
+    AI_INTERFACE_DIR
+)
 
 
-# Keeps our results consistent each time we run the model
+# Random seed
 RANDOM_STATE = 42
+
+
+# Dataset location
+DATA_PATH = os.path.join(
+    PROJECT_ROOT,
+    "data",
+    "Bank_Marketing_Dataset.csv"
+)
+
+
+# Prediction threshold
+PREDICTION_THRESHOLD = 0.20
+
+
+# Saved model location
+MODEL_PATH = os.path.join(
+    AI_INTERFACE_DIR,
+    "models",
+    "best_model.joblib"
+)
+
+
+# Model information
+MODEL_NAME = "Bank Term Deposit Prediction Model"
+
+MODEL_VERSION = "1.0"
+
+NUMBER_OF_FEATURES = 15
+
+
+# API settings
+API_HOST = "0.0.0.0"
+
+API_PORT = 7000
