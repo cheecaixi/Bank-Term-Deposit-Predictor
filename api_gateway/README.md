@@ -25,7 +25,7 @@ The **API Gateway** serves as the central entry point and orchestrator for the B
  ▼                     ▼                     ▼
 ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
 │ Member A: AI      │ │ Member D: Database│ │ Member D: Monitor │
-│ (Inference/7000)  │ │ Service (7001)    │ │ Service (7002)    │
+│ (Inference/7000)  │ │ Service (8000)    │ │ Service (7002)    │
 └───────────────────┘ └───────────────────┘ └───────────────────┘
 
 ```
@@ -96,9 +96,17 @@ docker build -t api-gateway:v1 .
 ### 2. Run Container Locally
 
 ```bash
-docker run -p 8080:8080 api-gateway:v1
-
+docker run -p 8080:8080 \
+  -e INFERENCE_SERVICE_URL=http://host.docker.internal:7000 \
+  -e DATABASE_SERVICE_URL=http://host.docker.internal:8000 \
+  -e MONITORING_SERVICE_URL=http://host.docker.internal:7002 \
+  api-gateway:v1
 ```
+
+When the Gateway runs directly on the host, the default Database Service URL is
+`http://localhost:8000`. A Docker container must use
+`http://host.docker.internal:8000` to reach a Database Service running on the
+host. Kubernetes uses `http://database-service:8000`.
 
 ### 3. Deploy to Kubernetes Cluster (Minikube)
 
