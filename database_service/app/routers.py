@@ -184,6 +184,38 @@ def update_customer(
     return customer
 
 
+@router.delete(
+    "/customers/{customer_id}",
+    tags=["Customers"]
+)
+def delete_customer(
+    customer_id: int,
+    db: Session = Depends(get_db)
+):
+
+    customer = (
+        db.query(Customer)
+        .filter(
+            Customer.customer_id == customer_id
+        )
+        .first()
+    )
+
+    if customer is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Customer not found"
+        )
+
+    db.delete(customer)
+    db.commit()
+
+    return {
+        "message": "Customer deleted successfully",
+        "customer_id": customer_id
+    }
+
+
 # ============================================================
 # CAMPAIGN HISTORY
 # ============================================================
@@ -299,6 +331,18 @@ def save_prediction(
     db.refresh(prediction)
 
     return prediction
+
+
+@router.get(
+    "/predictions",
+    response_model=list[PredictionResponse],
+    tags=["Predictions"]
+)
+def get_all_predictions(
+    db: Session = Depends(get_db)
+):
+
+    return db.query(Prediction).all()
 
 
 @router.get(
