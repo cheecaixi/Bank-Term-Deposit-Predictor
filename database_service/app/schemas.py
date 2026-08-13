@@ -9,33 +9,33 @@ from pydantic import BaseModel, ConfigDict
 # ============================================================
 
 class CustomerCreate(BaseModel):
-    phone_no: str
+    phone_number: str
 
     age: int
     job: str
     marital: str
     education: str
 
-    credit_default: str
+    default: str
     balance: float
-    housing_loan: str
-    personal_loan: str
+    housing: str
+    loan: str
 
     batch_id: Optional[int] = None
 
 
 class CustomerUpdate(BaseModel):
-    phone_no: Optional[str] = None
+    phone_number: Optional[str] = None
 
     age: Optional[int] = None
     job: Optional[str] = None
     marital: Optional[str] = None
     education: Optional[str] = None
 
-    credit_default: Optional[str] = None
+    default: Optional[str] = None
     balance: Optional[float] = None
-    housing_loan: Optional[str] = None
-    personal_loan: Optional[str] = None
+    housing: Optional[str] = None
+    loan: Optional[str] = None
 
 
 class CustomerResponse(CustomerCreate):
@@ -125,11 +125,11 @@ class HistoricalDataCreate(BaseModel):
     marital: str
     education: str
 
-    credit_default: str
+    default: str
     balance: float
 
-    housing_loan: str
-    personal_loan: str
+    housing: str
+    loan: str
 
     contact: str
     day: int
