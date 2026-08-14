@@ -81,6 +81,16 @@ def health_check():
 # ----------------------------------------------------
 @app.post("/api/predict")
 async def predict_subscription(customer_data: CustomerPredictModel):
+<<<<<<< HEAD
+=======
+    async with httpx.AsyncClient() as client:
+        payload = customer_data.model_dump()
+        inference_payload = {
+            field: value
+            for field, value in payload.items()
+            if field != "phone_number"
+        }
+>>>>>>> origin/main
 
     payload = customer_data.model_dump()
 
@@ -106,6 +116,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             inference_response.raise_for_status()
 
             prediction_result = inference_response.json()
+<<<<<<< HEAD
 
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
@@ -116,6 +127,13 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 )
             )
 
+=======
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Member A (AI Inference Service) error: {exc.response.text}"
+            )
+>>>>>>> origin/main
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=503,
@@ -125,6 +143,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 )
             )
 
+<<<<<<< HEAD
         # =========================================================
         # STEP 2 — CREATE OR FIND CUSTOMER IN MEMBER D
         # =========================================================
@@ -142,6 +161,84 @@ async def predict_subscription(customer_data: CustomerPredictModel):
         }
 
         try:
+=======
+        # Step B: Persist customer, campaign, and prediction data to Member D.
+        try:
+            customer_payload = {
+                field: payload[field]
+                for field in (
+                    "phone_number", "age", "job", "marital", "education",
+                    "default", "balance", "housing", "loan"
+                )
+            }
+
+            customer_response = await client.post(
+                f"{DATABASE_URL}/customers",
+                json=customer_payload,
+                timeout=TIMEOUT_SECONDS
+            )
+
+            if customer_response.status_code == 409:
+                customers_response = await client.get(
+                    f"{DATABASE_URL}/customers",
+                    timeout=TIMEOUT_SECONDS
+                )
+                customers_response.raise_for_status()
+                customer = next(
+                    (
+                        item for item in customers_response.json()
+                        if item.get("phone_number") == payload["phone_number"]
+                    ),
+                    None
+                )
+                if customer is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Customer exists but could not be retrieved"
+                    )
+                customer_id = customer["customer_id"]
+            else:
+                customer_response.raise_for_status()
+                customer_id = customer_response.json()["customer_id"]
+
+            campaign_response = await client.post(
+                f"{DATABASE_URL}/campaign-history",
+                json={
+                    "customer_id": customer_id,
+                    "contact": payload["contact"],
+                    "day": payload["day"],
+                    "month": payload["month"],
+                    "campaign": payload["campaign"],
+                    "pdays": payload["pdays"],
+                    "previous": payload["previous"],
+                    "poutcome": payload["poutcome"]
+                },
+                timeout=TIMEOUT_SECONDS
+            )
+            campaign_response.raise_for_status()
+
+            prediction_response = await client.post(
+                f"{DATABASE_URL}/predictions",
+                json={
+                    "customer_id": customer_id,
+                    "prediction": prediction_result["subscription"],
+                    "probability": prediction_result["probability"]
+                },
+                timeout=TIMEOUT_SECONDS
+            )
+            prediction_response.raise_for_status()
+
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Member D (Database Service) error: {exc.response.text}"
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Member D (Database Service) unreachable: {exc}"
+            )
+>>>>>>> origin/main
 
             customer_response = await client.post(
                 f"{DATABASE_URL}/customers",
