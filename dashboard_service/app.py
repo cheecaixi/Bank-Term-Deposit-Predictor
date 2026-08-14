@@ -56,20 +56,53 @@ if "use_mock" not in st.session_state:
 # ---------------------------------------------------------------
 def call_predict_api(record: dict) -> dict:
     """
-    Send one customer's data to the API Gateway.
-    The API Gateway validates the request and forwards it to
-    the AI Inference Service, which uses the deployed ML model
-    to generate the subscription prediction.
+    Send a customer prediction request to Member B API Gateway.
+    Member B forwards the 15 model features to Member A and
+    saves the customer, campaign history and prediction to Member D.
     """
     url = f"{st.session_state.gateway_url}/api/predict"
     response = requests.post(url, json=record, timeout=10)
     response.raise_for_status()
     return response.json()
 
+def search_customer_by_phone(phone_number: str):
+    """
+    Search Member D for an existing customer using their phone number.
+    The request is routed through Member B.
+    """
+    url = (
+        f"{st.session_state.gateway_url}"
+        f"/api/customers/phone/{phone_number}"
+    )
+    response = requests.get(url,timeout=10)
+
+    if response.status_code == 404:
+        return None
+
+    response.raise_for_status()
+    return response.json()
+
+def get_option_index(options, value):
+    try:
+        return options.index(value)
+    except ValueError:
+        return 0
+
+def update_customer(customer_id: int, customer_data: dict):
+    """
+    Update an existing customer through Member B.
+    """
+    url = (
+        f"{st.session_state.gateway_url}"
+        f"/api/customers/{customer_id}"
+    )
+    response = requests.put(url, json=customer_data, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
 def call_results_api() -> list:
     """
-    Retrieve historical prediction records from the API Gateway.
-    The Gateway forwards this request to the Database Service.
+    Retrieve historical prediction records through Member B.
     """
     url = f"{st.session_state.gateway_url}/api/results"
     response = requests.get(url, timeout=10)
@@ -81,29 +114,18 @@ def call_results_api() -> list:
 # ---------------------------------------------------------------
 def predict_one(record: dict):
     """
-    Generate a prediction for one customer using the deployed AI model through the API Gateway.
+    Send one customer record to the API Gateway for prediction.
     """
     try:
         return call_predict_api(record)
-    except requests.exceptions.ConnectionError:
+
+    except Exception as e:
         st.error(
-            "❌ Unable to connect to the API Gateway. "
-            "Please make sure the API Gateway is running."
+            f"Could not reach the API Gateway at "
+            f"{st.session_state.gateway_url}: {e}"
         )
-    except requests.exceptions.Timeout:
-        st.error(
-            "❌ The prediction request timed out. "
-            "Please try again."
-        )
-    except requests.exceptions.HTTPError as error:
-        st.error(
-            f"❌ The API Gateway returned an error: {error}"
-        )
-    except Exception as error:
-        st.error(
-            f"❌ Prediction failed: {error}"
-        )
-    return None
+
+        return None
 
 # ---------------------------------------------------------------    
 # BATCH CUSTOMER PREDICTION
@@ -254,78 +276,270 @@ st.write(
 tab1, tab2, tab3 = st.tabs(["🧑 Customer Prediction", "📁 Batch Customer Prediction", "📈 Analyst View"])
 
 # ---------------------------------------------------------------
-# TAB 1: SINGLE PREDICTION (Customer Prediction)
+# TAB 1: SINGLE CUSTOMER PREDICTION
 # ---------------------------------------------------------------
 with tab1:
-    st.subheader("Customer Subscription Prediction")
+
+    st.subheader("🧑 Customer Subscription Prediction")
 
     st.write(
-        "Enter the customer's contact, demographic, financial, and campaign "
-        "information to estimate their likelihood of subscribing to a term deposit."
+        "Search for an existing customer using their phone number, "
+        "or enter a new customer's information manually. "
+        "The AI model then predicts the customer's likelihood of "
+        "subscribing to a term deposit."
     )
 
     st.info(
-        "💡 The AI model analyses the customer's information and returns a "
-        "subscription probability. During a marketing call, agents can use "
-        "the result to support their decision on how to approach the customer."
+        "💡 The phone number is used only to identify the customer "
+        "and retrieve their saved information. It is NOT used by "
+        "the AI model for prediction."
     )
+
+    # =============================================================
+    # 1. CUSTOMER SEARCH
+    # =============================================================
+
+    st.markdown("### 🔎 Find Customer")
+
+    search_col1, search_col2 = st.columns([3, 1])
+
+    with search_col1:
+
+        phone_number = st.text_input(
+            "Phone Number",
+            placeholder="e.g. 91234567",
+            help=(
+                "Used to search for an existing customer in the "
+                "database. The phone number is not used as a "
+                "prediction feature."
+            )
+        )
+
+    with search_col2:
+
+        st.write("")
+        st.write("")
+
+        search_clicked = st.button(
+            "🔍 Search Customer",
+            use_container_width=True
+        )
+
+    # =============================================================
+    # SEARCH CUSTOMER
+    # =============================================================
+
+    if search_clicked:
+
+        if not phone_number.strip():
+
+            st.warning(
+                "Please enter a phone number before searching."
+            )
+
+        else:
+
+            with st.spinner("Searching customer database..."):
+
+                try:
+
+                    customer = search_customer_by_phone(
+                        phone_number.strip()
+                    )
+
+                    if customer is None:
+
+                        # Clear previous customer
+                        st.session_state.found_customer = None
+                        st.session_state.customer_id = None
+
+                        st.info(
+                            "ℹ️ No existing customer was found. "
+                            "Please enter the customer's information "
+                            "manually below."
+                        )
+
+                    else:
+
+                        st.session_state.found_customer = customer
+                        st.session_state.customer_id = (
+                            customer["customer_id"]
+                        )
+
+                        st.success(
+                            f"✅ Existing customer found — "
+                            f"Customer ID: "
+                            f"{customer['customer_id']}"
+                        )
+
+                except Exception as e:
+
+                    st.error(
+                        f"❌ Unable to search customer: {e}"
+                    )
+
+    # =============================================================
+    # EXISTING CUSTOMER STATUS
+    # =============================================================
+
+    existing_customer = st.session_state.get(
+        "found_customer"
+    )
+
+    if existing_customer:
+
+        st.caption(
+            "Customer information has been loaded from the database. "
+            "You can review and edit the information before generating "
+            "a new prediction."
+        )
+
+    else:
+
+        st.caption(
+            "No customer record is currently loaded. "
+            "Enter the customer information manually."
+        )
+
+    st.divider()
+
+    # =============================================================
+    # LOAD CUSTOMER DEFAULT VALUES
+    # =============================================================
+
+    if existing_customer:
+
+        default_age = existing_customer.get(
+            "age",
+            35
+        )
+
+        default_job = existing_customer.get(
+            "job",
+            JOB_OPTIONS[0]
+        )
+
+        default_marital = existing_customer.get(
+            "marital",
+            MARITAL_OPTIONS[0]
+        )
+
+        default_education = existing_customer.get(
+            "education",
+            EDUCATION_OPTIONS[0]
+        )
+
+        default_default = existing_customer.get(
+            "default",
+            YES_NO_OPTIONS[0]
+        )
+
+        default_balance = existing_customer.get(
+            "balance",
+            1000.0
+        )
+
+        default_housing = existing_customer.get(
+            "housing",
+            YES_NO_OPTIONS[0]
+        )
+
+        default_loan = existing_customer.get(
+            "loan",
+            YES_NO_OPTIONS[0]
+        )
+
+    else:
+
+        default_age = 35
+        default_job = JOB_OPTIONS[0]
+        default_marital = MARITAL_OPTIONS[0]
+        default_education = EDUCATION_OPTIONS[0]
+        default_default = YES_NO_OPTIONS[0]
+        default_balance = 1000.0
+        default_housing = YES_NO_OPTIONS[0]
+        default_loan = YES_NO_OPTIONS[0]
+
+    # =============================================================
+    # CUSTOMER INFORMATION FORM
+    # =============================================================
 
     with st.form("single_predict_form"):
 
         # =========================================================
         # CUSTOMER INFORMATION
         # =========================================================
+
         st.markdown("### 👤 Customer Information")
+
         st.caption(
-            "Enter the customer's identification and basic demographic information."
+            "Basic information used to identify the customer's "
+            "profile and support the prediction."
         )
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            phone_number = st.text_input(
-                "Phone Number",
-                placeholder="e.g. 91234567",
-                help="Used to identify the customer record in the database."
-            )
 
-        with col2:
             age = st.number_input(
                 "Age",
                 min_value=18,
                 max_value=100,
-                value=35,
+                value=int(default_age),
                 help="Customer's age in years."
             )
 
-        with col3:
+        with col2:
+
             job = st.selectbox(
                 "Job",
                 JOB_OPTIONS,
+                index=get_option_index(
+                    JOB_OPTIONS,
+                    default_job
+                ),
                 help="Customer's occupation."
+            )
+
+        with col3:
+
+            marital = st.selectbox(
+                "Marital Status",
+                MARITAL_OPTIONS,
+                index=get_option_index(
+                    MARITAL_OPTIONS,
+                    default_marital
+                ),
+                help="Customer's current marital status."
             )
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            marital = st.selectbox(
-                "Marital Status",
-                MARITAL_OPTIONS,
-                help="Customer's current marital status."
-            )
 
-        with col2:
             education = st.selectbox(
                 "Education",
                 EDUCATION_OPTIONS,
+                index=get_option_index(
+                    EDUCATION_OPTIONS,
+                    default_education
+                ),
                 help="Customer's highest level of education."
             )
 
-        with col3:
+        with col2:
+
             default = st.selectbox(
                 "Credit Default",
                 YES_NO_OPTIONS,
-                help="Whether the customer has credit in default."
+                index=get_option_index(
+                    YES_NO_OPTIONS,
+                    default_default
+                ),
+                help=(
+                    "Whether the customer has credit "
+                    "in default."
+                )
             )
 
         st.divider()
@@ -333,10 +547,12 @@ with tab1:
         # =========================================================
         # FINANCIAL & LOAN INFORMATION
         # =========================================================
+
         st.markdown("### 💰 Financial & Loan Information")
 
         st.caption(
-            "Information about the customer's account balance and existing loans."
+            "Information about the customer's account balance "
+            "and existing loans."
         )
 
         col1, col2, col3 = st.columns(3)
@@ -344,13 +560,16 @@ with tab1:
         EUR_TO_SGD = 1.48
 
         with col1:
+
             balance = st.number_input(
                 "Account Balance (€)",
                 min_value=0.0,
-                value=1000.0,
+                value=float(default_balance),
                 step=100.0,
-                help="Customer's current account balance in euros. "
-                     "The euro value is sent to the AI model."
+                help=(
+                    "Customer's account balance in euros. "
+                    "The EUR value is sent to the AI model."
+                )
             )
 
             balance_sgd = balance * EUR_TO_SGD
@@ -360,17 +579,33 @@ with tab1:
             )
 
         with col2:
+
             housing = st.selectbox(
                 "Housing Loan",
                 YES_NO_OPTIONS,
-                help="Whether the customer has a housing loan."
+                index=get_option_index(
+                    YES_NO_OPTIONS,
+                    default_housing
+                ),
+                help=(
+                    "Whether the customer has "
+                    "a housing loan."
+                )
             )
 
         with col3:
+
             loan = st.selectbox(
                 "Personal Loan",
                 YES_NO_OPTIONS,
-                help="Whether the customer has a personal loan."
+                index=get_option_index(
+                    YES_NO_OPTIONS,
+                    default_loan
+                ),
+                help=(
+                    "Whether the customer has "
+                    "a personal loan."
+                )
             )
 
         st.divider()
@@ -378,84 +613,111 @@ with tab1:
         # =========================================================
         # CURRENT CAMPAIGN INFORMATION
         # =========================================================
+
         st.markdown("### 📞 Current Campaign Information")
 
         st.caption(
-            "Information about the customer's interaction with the current "
-            "marketing campaign."
+            "Information about the customer's contact history "
+            "during the current and previous marketing campaigns."
         )
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
+
             contact = st.selectbox(
                 "Contact Method",
                 CONTACT_OPTIONS,
-                help="Communication method used to contact the customer."
+                help=(
+                    "Communication method used to "
+                    "contact the customer."
+                )
             )
 
         with col2:
+
             day = st.number_input(
-                "Last Contact Day of the Month",
+                "Last Contact Day of Month",
                 min_value=1,
                 max_value=31,
                 value=15,
-                help="Day of the month when the customer was last contacted."
+                help=(
+                    "Day of the month when the customer "
+                    "was last contacted."
+                )
             )
 
         with col3:
+
             month = st.selectbox(
                 "Last Contact Month",
                 MONTH_OPTIONS,
-                help="Month when the customer was last contacted."
+                help=(
+                    "Month when the customer "
+                    "was last contacted."
+                )
             )
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
+
             campaign = st.number_input(
                 "Contacts in Current Campaign",
                 min_value=1,
                 value=1,
                 help=(
-                    "Number of times the customer has been contacted "
-                    "during the current campaign, including the latest contact."
+                    "Number of contacts made to this customer "
+                    "during the current campaign, including "
+                    "the latest contact."
                 )
             )
 
         with col2:
+
             pdays = st.number_input(
                 "Days Since Previous Contact",
                 min_value=-1,
                 value=-1,
                 step=1,
                 help=(
-                    "-1 means the customer was not previously contacted. "
-                    "0 means the previous contact was on the same day."
+                    "-1 means the customer was not contacted "
+                    "in a previous campaign. Values 0 or greater "
+                    "represent the number of days since the previous "
+                    "contact."
                 )
             )
 
         with col3:
+
             previous = st.number_input(
                 "Previous Campaign Contacts",
                 min_value=0,
                 value=0,
                 help=(
-                    "Number of contacts made to the customer before "
-                    "the current campaign."
+                    "Number of contacts made to this customer "
+                    "before the current campaign."
                 )
             )
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
+
             poutcome = st.selectbox(
                 "Previous Campaign Outcome",
                 POUTCOME_OPTIONS,
-                help="Outcome of the customer's previous marketing campaign."
+                help=(
+                    "Outcome of the customer's "
+                    "previous marketing campaign."
+                )
             )
 
         st.divider()
+
+        # =========================================================
+        # PREDICTION BUTTON
+        # =========================================================
 
         submitted = st.form_submit_button(
             "🔮 Generate Subscription Prediction",
@@ -464,29 +726,34 @@ with tab1:
         )
 
     # =============================================================
-    # PREDICTION RESULT
+    # GENERATE PREDICTION
     # =============================================================
+
     if submitted:
 
         # ---------------------------------------------------------
-        # Validate customer identification
+        # Validate phone number
         # ---------------------------------------------------------
+
         if not phone_number.strip():
+
             st.error(
-                "Please enter the customer's phone number before generating "
-                "a prediction."
+                "❌ Please enter a phone number before "
+                "generating a prediction."
             )
 
         else:
 
             # -----------------------------------------------------
-            # Complete customer record
-            #
-            # phone_number -> used by Database Service
-            # remaining 15 fields -> used by AI Inference Service
+            # Create complete request
             # -----------------------------------------------------
+
             record = {
+
+                # Customer identification
                 "phone_number": phone_number.strip(),
+
+                # Customer features
                 "age": age,
                 "job": job,
                 "marital": marital,
@@ -495,33 +762,68 @@ with tab1:
                 "balance": balance,
                 "housing": housing,
                 "loan": loan,
+
+                # Campaign features
                 "contact": contact,
                 "day": day,
                 "month": month,
                 "campaign": campaign,
                 "pdays": pdays,
                 "previous": previous,
-                "poutcome": poutcome,
+                "poutcome": poutcome
             }
 
-            with st.spinner("Generating prediction..."):
+            # -----------------------------------------------------
+            # Call Member B
+            # -----------------------------------------------------
+
+            with st.spinner(
+                "Sending customer information to the AI system..."
+            ):
+
                 result = predict_one(record)
+
+            # -----------------------------------------------------
+            # Display result
+            # -----------------------------------------------------
 
             if result:
 
                 probability = result["probability"]
+
                 subscription = result["subscription"]
+
                 processing_time = result.get(
                     "processing_time_seconds"
+                )
+
+                returned_customer_id = result.get(
+                    "customer_id"
                 )
 
                 st.divider()
 
                 st.markdown("### 📊 Prediction Result")
 
+                # -------------------------------------------------
+                # Customer identification
+                # -------------------------------------------------
+
+                if returned_customer_id is not None:
+
+                    st.caption(
+                        f"Customer ID: {returned_customer_id} "
+                        f"• Phone: {phone_number}"
+                    )
+
+                # -------------------------------------------------
+                # Result metrics
+                # -------------------------------------------------
+
                 result_col1, result_col2 = st.columns([1, 2])
 
                 with result_col1:
+
                     st.metric(
                         "Subscription Probability",
                         f"{probability * 100:.1f}%"
@@ -529,39 +831,53 @@ with tab1:
 
                 with result_col2:
 
-                    st.write("**Predicted Likelihood**")
+                    st.write(
+                        "**Predicted Likelihood**"
+                    )
 
-                    st.progress(probability)
+                    st.progress(
+                        probability
+                    )
 
                     if subscription == "Yes":
+
                         st.success(
                             "✅ Likely to Subscribe"
                         )
+
                     else:
+
                         st.warning(
                             "❌ Unlikely to Subscribe"
                         )
 
                 # -------------------------------------------------
-                # RESULT INTERPRETATION
+                # Interpretation
                 # -------------------------------------------------
+
                 if subscription == "Yes":
 
                     st.write(
-                        "The AI model predicts a higher likelihood that this "
-                        "customer will subscribe to the term deposit. The agent "
-                        "may consider prioritising the customer for further "
-                        "conversation during the campaign."
+                        "The AI model predicts a higher likelihood "
+                        "that this customer will subscribe to the "
+                        "term deposit. The customer may therefore "
+                        "be considered a higher-priority prospect "
+                        "for the marketing campaign."
                     )
 
                 else:
 
                     st.write(
-                        "The AI model predicts a lower likelihood that this "
-                        "customer will subscribe to the term deposit. The result "
-                        "can be considered together with other customer "
-                        "information when deciding how to proceed with the call."
+                        "The AI model predicts a lower likelihood "
+                        "that this customer will subscribe to the "
+                        "term deposit. The result can be considered "
+                        "when deciding how to allocate campaign "
+                        "calling resources."
                     )
+
+                # -------------------------------------------------
+                # Processing time
+                # -------------------------------------------------
 
                 if processing_time is not None:
 
@@ -571,31 +887,38 @@ with tab1:
                     )
 
                 # -------------------------------------------------
-                # SESSION HISTORY
+                # Save session history
                 # -------------------------------------------------
+
                 st.session_state.history.insert(
                     0,
                     {
-                        "time": time.strftime("%H:%M:%S"),
+                        "time": time.strftime(
+                            "%H:%M:%S"
+                        ),
                         "phone_number": phone_number,
                         "job": job,
                         "age": age,
                         "probability": probability,
-                        "prediction": subscription,
+                        "prediction": subscription
                     }
                 )
 
     # =============================================================
     # RECENT PREDICTIONS
     # =============================================================
+
     if st.session_state.history:
 
         st.divider()
 
-        st.markdown("### 🕘 Recent Predictions")
+        st.markdown(
+            "### 🕘 Recent Predictions"
+        )
 
         st.caption(
-            "Predictions generated during the current dashboard session."
+            "Predictions generated during the current "
+            "dashboard session."
         )
 
         hist_df = pd.DataFrame(
