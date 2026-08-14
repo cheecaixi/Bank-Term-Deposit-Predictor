@@ -86,6 +86,12 @@ def create_model_configs(scale_pos_weight):
 
     Different imbalance handling methods are used because
     each algorithm responds differently to imbalance.
+
+    Random Forest, XGBoost, and LightGBM all support native
+    class weighting, so they use class_weight / scale_pos_weight
+    directly. GradientBoostingClassifier has no native class
+    weighting option, so SMOTE oversampling is used instead for
+    that model specifically.
     """
 
     model_configs = {
@@ -332,6 +338,11 @@ def tune_model(
 
     ROC AUC is used as the main tuning metric because
     the target classes are imbalanced.
+
+    Returns both the best fitted estimator and its
+    cross-validation ROC AUC score. The CV score is what
+    should be used to compare models against each other,
+    since it is computed without ever touching the test set.
     """
 
     print()
@@ -373,7 +384,7 @@ def tune_model(
         f"{search.best_score_:.4f}"
     )
 
-    return search.best_estimator_
+    return search.best_estimator_, search.best_score_
 
 
 def evaluate_model(
@@ -382,8 +393,13 @@ def evaluate_model(
     y_test
 ):
     """
-    Evaluate one trained model using the default
-    classification threshold of 0.50.
+    Evaluate one trained model on the held-out test set,
+    using the default classification threshold of 0.50.
+
+    This is used for FINAL REPORTING only. It must never be
+    used to decide which model "wins" -- doing so would leak
+    information from the test set into model selection, which
+    would make the reported final ROC AUC optimistic.
     """
 
     y_pred = model.predict(
@@ -436,6 +452,12 @@ def train_models(
 ):
     """
     Tune, train, and compare all models.
+
+    Model selection (deciding which model is "best") is based
+    on cross-validation ROC AUC, computed entirely on the
+    training set. The test set is only used afterwards, to
+    report an honest, unbiased performance estimate for each
+    model -- it never influences which model is chosen.
     """
 
     scale_pos_weight = calculate_scale_pos_weight(
@@ -458,11 +480,11 @@ def train_models(
 
     best_model = None
     best_model_name = None
-    best_roc_auc = 0
+    best_cv_roc_auc = 0
 
     for model_name, config in model_configs.items():
 
-        best_model_for_type = tune_model(
+        best_model_for_type, cv_roc_auc = tune_model(
             model_name,
             config["pipeline"],
             config["params"],
@@ -512,6 +534,11 @@ def train_models(
             f"{model_results['ROC AUC']:.4f}"
         )
 
+        print(
+            f"CV ROC AUC (used for selection): "
+            f"{cv_roc_auc:.4f}"
+        )
+
         print()
         print("Classification Report:")
 
@@ -530,6 +557,8 @@ def train_models(
         results.append(
             {
                 "Model": model_name,
+                "CV ROC AUC":
+                    cv_roc_auc,
                 "Accuracy":
                     model_results["Accuracy"],
                 "Precision":
@@ -543,13 +572,16 @@ def train_models(
             }
         )
 
+        # Selection uses the cross-validation score, NOT the
+        # test-set score. This keeps the test set completely
+        # unseen until final reporting.
         if (
-            model_results["ROC AUC"]
-            > best_roc_auc
+            cv_roc_auc
+            > best_cv_roc_auc
         ):
 
-            best_roc_auc = (
-                model_results["ROC AUC"]
+            best_cv_roc_auc = (
+                cv_roc_auc
             )
 
             best_model = (
@@ -564,8 +596,11 @@ def train_models(
         results
     )
 
+    # Sorted by CV ROC AUC since that is the metric that
+    # actually decided the winner. Test ROC AUC is included
+    # alongside it for transparency, but is reporting-only.
     results_df = results_df.sort_values(
-        "ROC AUC",
+        "CV ROC AUC",
         ascending=False
     ).reset_index(
         drop=True
@@ -731,7 +766,12 @@ def main():
     )
 
     print(
-        f"ROC AUC: "
+        f"Selected by CV ROC AUC: "
+        f"{results_df.iloc[0]['CV ROC AUC']:.4f}"
+    )
+
+    print(
+        f"Test set ROC AUC (unbiased estimate): "
         f"{results_df.iloc[0]['ROC AUC']:.4f}"
     )
 
