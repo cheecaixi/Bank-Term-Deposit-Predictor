@@ -3,3 +3,4 @@ models/*.joblib
 *.py[cod]
 .env
 **/.env
+*.log
