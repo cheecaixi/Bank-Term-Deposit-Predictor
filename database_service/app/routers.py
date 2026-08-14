@@ -86,11 +86,14 @@ def create_customer(
         raise
     except SQLAlchemyError as exc:
         db.rollback()
+
+        print("DATABASE ERROR:")
+        print(repr(exc))
+
         raise HTTPException(
             status_code=500,
-            detail="Unable to create customer due to a database error"
+            detail=f"Database error: {str(exc)}"
         ) from exc
-
 
 @router.get(
     "/customers",

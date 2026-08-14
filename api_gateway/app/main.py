@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
 
-from config import settings
+from app.config import settings
 
 # Initialize FastAPI Application
 app = FastAPI(

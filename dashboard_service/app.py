@@ -134,15 +134,8 @@ def predict_many(df: pd.DataFrame, progress_callback=None):
     """
     Generate predictions for multiple customers through the API Gateway.
 
-    The complete customer record is sent to the Gateway, including:
-    - phone_number for customer identification
-    - 15 AI model features for prediction
-
-    The API Gateway is responsible for:
-    - Creating/updating the customer record
-    - Recording campaign information
-    - Sending the 15 AI features to the Inference Service
-    - Saving the prediction to the Database Service
+    Each CSV row is converted into the exact JSON structure expected
+    by the API Gateway /api/predict endpoint.
     """
 
     results = []
@@ -151,34 +144,83 @@ def predict_many(df: pd.DataFrame, progress_callback=None):
 
     for index, row in df.iterrows():
 
-        # Convert the complete CSV row into a dictionary.
-        # This includes phone_number and all 15 AI features.
-        record = row.to_dict()
+        # ---------------------------------------------------------
+        # Build the request using the exact API field names
+        # ---------------------------------------------------------
+
+        record = {
+            # Customer identification
+            "phone_number": str(row["phone_number"]).strip(),
+
+            # Customer features
+            "age": int(row["age"]),
+            "job": str(row["job"]),
+            "marital": str(row["marital"]),
+            "education": str(row["education"]),
+            "default": str(row["default"]),
+            "balance": float(row["balance"]),
+            "housing": str(row["housing"]),
+            "loan": str(row["loan"]),
+
+            # Campaign features
+            "contact": str(row["contact"]),
+            "day": int(row["day"]),
+            "month": str(row["month"]),
+            "campaign": int(row["campaign"]),
+            "pdays": int(row["pdays"]),
+            "previous": int(row["previous"]),
+            "poutcome": str(row["poutcome"])
+        }
 
         try:
-            # Send the complete customer record to the API Gateway.
-            # The Gateway handles communication with Member A and Member D.
+
             result = call_predict_api(record)
+
+        except requests.exceptions.HTTPError as e:
+
+            # Show the actual API response instead of only
+            # "422 Client Error"
+            if e.response is not None:
+
+                st.error(
+                    f"❌ Batch prediction failed at row "
+                    f"{index + 1}.\n\n"
+                    f"Status code: {e.response.status_code}\n\n"
+                    f"API response:\n{e.response.text}"
+                )
+
+            else:
+
+                st.error(
+                    f"❌ Batch prediction failed at row "
+                    f"{index + 1}: {e}"
+                )
+
+            return None
 
         except Exception as e:
 
             st.error(
-                f"❌ Batch prediction stopped at row {index + 1}: "
-                f"{e}"
+                f"❌ Batch prediction stopped at row "
+                f"{index + 1}: {e}"
             )
 
             return None
 
         results.append(result)
 
+        # ---------------------------------------------------------
         # Update progress bar
+        # ---------------------------------------------------------
+
         if progress_callback:
+
             progress_callback(
-                (len(results)) / total_records
+                len(results) / total_records
             )
 
     # ---------------------------------------------------------
-    # ADD PREDICTION RESULTS TO THE ORIGINAL DATA
+    # Add prediction results to original dataframe
     # ---------------------------------------------------------
 
     out = df.copy()
@@ -1440,22 +1482,25 @@ with tab3:
                 ["probability"]
             ].copy()
 
+            # Convert probability from decimal to percentage
             probability_df["probability"] = (
                 probability_df["probability"] * 100
             )
 
-            probability_df = probability_df.rename(
-                columns={
-                    "probability":
-                    "Subscription Probability (%)"
-                }
-            )
-
-            st.bar_chart(
-                probability_df
+            # Round probabilities into whole-number percentage groups
+            probability_counts = (
+                probability_df["probability"]
                 .round(0)
                 .value_counts()
                 .sort_index()
+                .rename_axis("Subscription Probability (%)")
+                .reset_index(name="Number of Predictions")
+            )
+
+            st.bar_chart(
+                probability_counts,
+                x="Subscription Probability (%)",
+                y="Number of Predictions"
             )
 
         # =========================================================
