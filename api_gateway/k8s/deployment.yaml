@@ -21,7 +21,7 @@ spec:
         - containerPort: 8080
         env:                        # Injects microservice internal DNS endpoints
         - name: INFERENCE_SERVICE_URL
-          value: "http://ai-inference-service:8000"
+          value: "http://ai-inference-service:7000"
         - name: DATABASE_SERVICE_URL
           value: "http://database-service:8000"
         - name: MONITORING_SERVICE_URL
