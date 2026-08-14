@@ -38,14 +38,28 @@ try:
 
     model_loaded = True
 
+    # Work out which column of predict_proba() corresponds
+    # to the positive class (target = 1, "subscribed").
+    #
+    # This does NOT assume the positive class is always at
+    # index 1 -- it looks it up from the model itself, so it
+    # stays correct even if classes_ is ordered differently.
+    POSITIVE_CLASS_INDEX = list(
+        model.classes_
+    ).index(1)
+
     print("Model loaded successfully")
     print(MODEL_PATH)
+    print("Model classes:", model.classes_)
+    print("Positive class index:", POSITIVE_CLASS_INDEX)
 
 except Exception as error:
 
     model = None
 
     model_loaded = False
+
+    POSITIVE_CLASS_INDEX = None
 
     print("Model could not be loaded")
     print(error)
@@ -126,10 +140,16 @@ def predict(customer: CustomerData):
             [customer_data]
         )
 
-        # Predict probability of subscription
+        # Predict probability of subscription.
+        #
+        # POSITIVE_CLASS_INDEX is looked up once at startup
+        # from model.classes_, instead of assuming the
+        # positive class is always in column [1]. This avoids
+        # silently inverted predictions if the model's class
+        # ordering ever changes.
         probability = model.predict_proba(
             customer_df
-        )[0][1]
+        )[0][POSITIVE_CLASS_INDEX]
 
         # Apply the selected probability threshold
         prediction = int(
