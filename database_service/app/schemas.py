@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
@@ -21,7 +21,23 @@ class CustomerCreate(BaseModel):
     housing: str
     loan: str
 
-    batch_id: Optional[int] = None
+    batch_id: Optional[int] = Field(default=None, gt=0)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "phone_number": "91234567",
+                "age": 35,
+                "job": "management",
+                "marital": "married",
+                "education": "tertiary",
+                "default": "no",
+                "balance": 1500,
+                "housing": "yes",
+                "loan": "no"
+            }
+        }
+    )
 
 
 class CustomerUpdate(BaseModel):

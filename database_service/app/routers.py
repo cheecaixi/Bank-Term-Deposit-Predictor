@@ -5,6 +5,7 @@ from fastapi import (
 )
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import get_db
 
@@ -47,46 +48,48 @@ def create_customer(
     data: CustomerCreate,
     db: Session = Depends(get_db)
 ):
-
-    # Check duplicate phone number
-    existing_customer = (
-        db.query(Customer)
-        .filter(Customer.phone_number == data.phone_number)
-        .first()
-    )
-
-    if existing_customer:
-        raise HTTPException(
-            status_code=409,
-            detail="Customer with this phone number already exists"
-        )
-
-    # Check batch exists if batch_id was supplied
-    if data.batch_id is not None:
-
-        batch = (
-            db.query(BatchUpload)
-            .filter(
-                BatchUpload.batch_id == data.batch_id
-            )
+    try:
+        existing_customer = (
+            db.query(Customer)
+            .filter(Customer.phone_number == data.phone_number)
             .first()
         )
 
-        if batch is None:
+        if existing_customer:
             raise HTTPException(
-                status_code=404,
-                detail="Batch not found"
+                status_code=409,
+                detail="Customer with this phone number already exists"
             )
 
-    customer = Customer(
-        **data.model_dump()
-    )
+        if data.batch_id is not None:
+            batch = (
+                db.query(BatchUpload)
+                .filter(BatchUpload.batch_id == data.batch_id)
+                .first()
+            )
 
-    db.add(customer)
-    db.commit()
-    db.refresh(customer)
+            if batch is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Batch not found"
+                )
 
-    return customer
+        customer = Customer(**data.model_dump())
+
+        db.add(customer)
+        db.commit()
+        db.refresh(customer)
+
+        return customer
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to create customer due to a database error"
+        ) from exc
 
 
 @router.get(
