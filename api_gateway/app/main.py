@@ -241,38 +241,119 @@ async def fetch_historical_results():
 
 
 # ----------------------------------------------------
-# 4. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)
+# 4. SEARCH CUSTOMER BY PHONE NUMBER
+# ----------------------------------------------------
+@app.get("/api/customers/phone/{phone_number}")
+async def get_customer_by_phone(phone_number: str):
+    """
+    Search for an existing customer by phone number.
+
+    Member C (Dashboard) calls this endpoint.
+    The API Gateway forwards the request to Member D
+    and returns the matching customer.
+    """
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{DATABASE_URL}/customers",
+                timeout=TIMEOUT_SECONDS
+            )
+
+            response.raise_for_status()
+
+            customers = response.json()
+
+            customer = next(
+                (
+                    item
+                    for item in customers
+                    if str(item.get("phone_number", "")).strip()
+                    == phone_number.strip()
+                ),
+                None
+            )
+
+            if customer is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Customer not found"
+                )
+
+            return customer
+
+        except HTTPException:
+            raise
+
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=(
+                    "Member D (Database Service) error: "
+                    f"{exc.response.text}"
+                )
+            )
+
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Member D (Database Service) unreachable: "
+                    f"{exc}"
+                )
+            )
+
+
+# ----------------------------------------------------
+# 5. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)
 # ----------------------------------------------------
 @app.put("/api/customers/{customer_id}")
-async def update_customer(customer_id: int, updated_data: CustomerUpdateModel):
+async def update_customer(
+    customer_id: int,
+    updated_data: CustomerUpdateModel
+):
     """
     Receives updated customer records from Member C (Dashboard)
     and forwards the PUT request to Member D (Database Service).
     """
+
     async with httpx.AsyncClient() as client:
         try:
-            payload = updated_data.model_dump(exclude_unset=True)
+            payload = updated_data.model_dump(
+                exclude_unset=True
+            )
+
             response = await client.put(
                 f"{DATABASE_URL}/customers/{customer_id}",
                 json=payload,
                 timeout=TIMEOUT_SECONDS
             )
+
             response.raise_for_status()
+
             return response.json()
+
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
-                detail=f"Database Service error: {exc.response.text}"
+                detail=(
+                    f"Database Service error: "
+                    f"{exc.response.text}"
+                )
             )
+
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Member D (Database Service) unreachable: {exc}"
+                detail=(
+                    "Member D (Database Service) unreachable: "
+                    f"{exc}"
+                )
             )
 
 
 # ----------------------------------------------------
-# 5. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)
+# 6. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)
 # ----------------------------------------------------
 @app.delete("/api/customers/{customer_id}")
 async def delete_customer(customer_id: int):
@@ -280,28 +361,38 @@ async def delete_customer(customer_id: int):
     Receives a customer deletion request from Member C (Dashboard)
     and forwards the DELETE request to Member D (Database Service).
     """
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.delete(
                 f"{DATABASE_URL}/customers/{customer_id}",
                 timeout=TIMEOUT_SECONDS
             )
+
             response.raise_for_status()
+
             return response.json()
+
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
-                detail=f"Database Service error: {exc.response.text}"
+                detail=(
+                    f"Database Service error: "
+                    f"{exc.response.text}"
+                )
             )
+
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Member D (Database Service) unreachable: {exc}"
+                detail=(
+                    "Member D (Database Service) unreachable: "
+                    f"{exc}"
+                )
             )
 
-
 # ----------------------------------------------------
-# 6. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)
+# 7. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)
 # ----------------------------------------------------
 @app.get("/api/logs")
 async def fetch_system_logs():
