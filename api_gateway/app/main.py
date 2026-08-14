@@ -48,7 +48,7 @@ class CustomerPredictModel(BaseModel):
     pdays: int = Field(..., example=-1)
     previous: int = Field(..., example=0)
     poutcome: str = Field(..., example="unknown")
-
+    
 class CustomerUpdateModel(BaseModel):
     phone_number: Optional[str] = Field(None, example="91234567")
     age: Optional[int] = Field(None, example=36)
@@ -81,8 +81,6 @@ def health_check():
 # ----------------------------------------------------
 @app.post("/api/predict")
 async def predict_subscription(customer_data: CustomerPredictModel):
-<<<<<<< HEAD
-=======
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         inference_payload = {
@@ -90,78 +88,27 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             for field, value in payload.items()
             if field != "phone_number"
         }
->>>>>>> origin/main
 
-    payload = customer_data.model_dump()
-
-    # =========================================================
-    # STEP 1 — SEND ONLY MODEL FEATURES TO MEMBER A
-    # =========================================================
-
-    inference_payload = {
-        field: value
-        for field, value in payload.items()
-        if field != "phone_number"
-    }
-
-    async with httpx.AsyncClient() as client:
-
+        # Step A: Request prediction from Member A (AI Inference)
         try:
             inference_response = await client.post(
                 f"{INFERENCE_URL}/predict",
                 json=inference_payload,
                 timeout=TIMEOUT_SECONDS
             )
-
             inference_response.raise_for_status()
-
             prediction_result = inference_response.json()
-<<<<<<< HEAD
-
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Member A prediction failed: "
-                    f"{exc.response.text}"
-                )
-            )
-
-=======
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
                 detail=f"Member A (AI Inference Service) error: {exc.response.text}"
             )
->>>>>>> origin/main
         except httpx.RequestError as exc:
             raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Member A is unreachable: "
-                    f"{exc}"
-                )
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Member A (AI Inference Service) unreachable: {exc}"
             )
 
-<<<<<<< HEAD
-        # =========================================================
-        # STEP 2 — CREATE OR FIND CUSTOMER IN MEMBER D
-        # =========================================================
-
-        customer_payload = {
-            "phone_number": payload["phone_number"],
-            "age": payload["age"],
-            "job": payload["job"],
-            "marital": payload["marital"],
-            "education": payload["education"],
-            "default": payload["default"],
-            "balance": payload["balance"],
-            "housing": payload["housing"],
-            "loan": payload["loan"]
-        }
-
-        try:
-=======
         # Step B: Persist customer, campaign, and prediction data to Member D.
         try:
             customer_payload = {
@@ -238,172 +185,8 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Member D (Database Service) unreachable: {exc}"
             )
->>>>>>> origin/main
 
-            customer_response = await client.post(
-                f"{DATABASE_URL}/customers",
-                json=customer_payload,
-                timeout=TIMEOUT_SECONDS
-            )
-
-            # New customer
-            if customer_response.status_code == 201:
-                customer = customer_response.json()
-                customer_id = customer["customer_id"]
-
-            # Existing customer
-            elif customer_response.status_code == 409:
-
-                customers_response = await client.get(
-                    f"{DATABASE_URL}/customers",
-                    timeout=TIMEOUT_SECONDS
-                )
-
-                customers_response.raise_for_status()
-
-                customers = customers_response.json()
-
-                customer = next(
-                    (
-                        item
-                        for item in customers
-                        if item.get("phone_number")
-                        == payload["phone_number"]
-                    ),
-                    None
-                )
-
-                if customer is None:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=(
-                            "Customer already exists, "
-                            "but could not be retrieved."
-                        )
-                    )
-
-                customer_id = customer["customer_id"]
-
-            else:
-
-                customer_response.raise_for_status()
-
-        except HTTPException:
-            raise
-
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Member D customer operation failed: "
-                    f"{exc.response.text}"
-                )
-            )
-
-        except httpx.RequestError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Member D is unreachable: "
-                    f"{exc}"
-                )
-            )
-
-        # =========================================================
-        # STEP 3 — SAVE CAMPAIGN HISTORY
-        # =========================================================
-
-        campaign_payload = {
-            "customer_id": customer_id,
-            "contact": payload["contact"],
-            "day": payload["day"],
-            "month": payload["month"],
-            "campaign": payload["campaign"],
-            "pdays": payload["pdays"],
-            "previous": payload["previous"],
-            "poutcome": payload["poutcome"]
-        }
-
-        try:
-
-            campaign_response = await client.post(
-                f"{DATABASE_URL}/campaign-history",
-                json=campaign_payload,
-                timeout=TIMEOUT_SECONDS
-            )
-
-            campaign_response.raise_for_status()
-
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Failed to save campaign history to Member D: "
-                    f"{exc.response.text}"
-                )
-            )
-
-        except httpx.RequestError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Member D campaign-history endpoint is unreachable: "
-                    f"{exc}"
-                )
-            )
-
-        # =========================================================
-        # STEP 4 — SAVE PREDICTION
-        # =========================================================
-
-        prediction_payload = {
-            "customer_id": customer_id,
-            "prediction": prediction_result["subscription"],
-            "probability": prediction_result["probability"]
-        }
-
-        try:
-
-            prediction_response = await client.post(
-                f"{DATABASE_URL}/predictions",
-                json=prediction_payload,
-                timeout=TIMEOUT_SECONDS
-            )
-
-            prediction_response.raise_for_status()
-
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Failed to save prediction to Member D: "
-                    f"{exc.response.text}"
-                )
-            )
-
-        except httpx.RequestError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Member D prediction endpoint is unreachable: "
-                    f"{exc}"
-                )
-            )
-
-        # =========================================================
-        # STEP 5 — RETURN RESULT TO MEMBER C
-        # =========================================================
-
-        return {
-            "customer_id": customer_id,
-            "prediction": prediction_result["prediction"],
-            "subscription": prediction_result["subscription"],
-            "probability": prediction_result["probability"],
-            "processing_time_seconds":
-                prediction_result.get(
-                    "processing_time_seconds"
-                )
-        }
+        return prediction_result
 
 
 # ----------------------------------------------------
