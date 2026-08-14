@@ -1,9 +1,10 @@
-import os
-from typing import Optional
+from typing import Optional, Literal
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
+
+from config import settings
 
 # Initialize FastAPI Application
 app = FastAPI(
@@ -13,52 +14,77 @@ app = FastAPI(
 )
 
 # Enable CORS for Member C's Dashboard / Frontend
+#
+# NOTE: allow_credentials=False here because allow_origins="*" and
+# allow_credentials=True together are invalid per the CORS spec --
+# browsers will silently block credentialed requests in that combination.
+# If Member C's dashboard ever needs to send cookies or an Authorization
+# header, allow_origins must be changed to the dashboard's exact origin
+# (e.g. ["http://localhost:3000"]) and allow_credentials set to True.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load Microservice URLs from Environment Variables (With Local Development Fallbacks)
-INFERENCE_URL = os.getenv("INFERENCE_SERVICE_URL", "http://localhost:7000")
-DATABASE_URL = os.getenv("DATABASE_SERVICE_URL", "http://localhost:8000")
-MONITORING_URL = os.getenv("MONITORING_SERVICE_URL", "http://localhost:7002")
-TIMEOUT_SECONDS = float(os.getenv("TIMEOUT_SECONDS", 5.0))
+# Load Microservice URLs from shared config (single source of truth,
+# instead of duplicating os.getenv calls here and in config.py)
+INFERENCE_URL = settings.INFERENCE_SERVICE_URL
+DATABASE_URL = settings.DATABASE_SERVICE_URL
+MONITORING_URL = settings.MONITORING_SERVICE_URL
+TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 
 
 # ----------------------------------------------------
 # PYDANTIC SCHEMAS FOR DATA VALIDATION
+#
+# Categorical fields use the same Literal values as Member A's
+# CustomerData schema (inference/schemas.py), confirmed against
+# the actual training dataset. This means bad category values are
+# rejected here with a 422, instead of round-tripping to the
+# inference service first and forwarding its error back.
 # ----------------------------------------------------
 class CustomerPredictModel(BaseModel):
     phone_number: str = Field(..., example="91234567")
     age: int = Field(..., example=35)
-    job: str = Field(..., example="management")
-    marital: str = Field(..., example="married")
-    education: str = Field(..., example="tertiary")
-    default: str = Field(..., example="no")
+    job: Literal[
+        "admin.", "blue-collar", "entrepreneur", "housemaid",
+        "management", "retired", "self-employed", "services",
+        "student", "technician", "unemployed", "unknown"
+    ] = Field(..., example="management")
+    marital: Literal["married", "single", "divorced"] = Field(..., example="married")
+    education: Literal["primary", "secondary", "tertiary", "unknown"] = Field(..., example="tertiary")
+    default: Literal["yes", "no"] = Field(..., example="no")
     balance: float = Field(..., example=1500)
-    housing: str = Field(..., example="yes")
-    loan: str = Field(..., example="no")
-    contact: str = Field(..., example="cellular")
+    housing: Literal["yes", "no"] = Field(..., example="yes")
+    loan: Literal["yes", "no"] = Field(..., example="no")
+    contact: Literal["cellular", "telephone", "unknown"] = Field(..., example="cellular")
     day: int = Field(..., example=15)
-    month: str = Field(..., example="may")
+    month: Literal[
+        "jan", "feb", "mar", "apr", "may", "jun",
+        "jul", "aug", "sep", "oct", "nov", "dec"
+    ] = Field(..., example="may")
     campaign: int = Field(..., example=1)
     pdays: int = Field(..., example=-1)
     previous: int = Field(..., example=0)
-    poutcome: str = Field(..., example="unknown")
-    
+    poutcome: Literal["failure", "other", "success", "unknown"] = Field(..., example="unknown")
+
 class CustomerUpdateModel(BaseModel):
     phone_number: Optional[str] = Field(None, example="91234567")
     age: Optional[int] = Field(None, example=36)
-    job: Optional[str] = Field(None, example="technician")
-    marital: Optional[str] = Field(None, example="single")
-    education: Optional[str] = Field(None, example="tertiary")
-    default: Optional[str] = Field(None, example="no")
+    job: Optional[Literal[
+        "admin.", "blue-collar", "entrepreneur", "housemaid",
+        "management", "retired", "self-employed", "services",
+        "student", "technician", "unemployed", "unknown"
+    ]] = Field(None, example="technician")
+    marital: Optional[Literal["married", "single", "divorced"]] = Field(None, example="single")
+    education: Optional[Literal["primary", "secondary", "tertiary", "unknown"]] = Field(None, example="tertiary")
+    default: Optional[Literal["yes", "no"]] = Field(None, example="no")
     balance: Optional[float] = Field(None, example=2000)
-    housing: Optional[str] = Field(None, example="yes")
-    loan: Optional[str] = Field(None, example="no")
+    housing: Optional[Literal["yes", "no"]] = Field(None, example="yes")
+    loan: Optional[Literal["yes", "no"]] = Field(None, example="no")
 
 
 # ----------------------------------------------------
