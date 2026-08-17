@@ -17,10 +17,10 @@ Install the following before starting:
 
 ## Recommended: start everything with Docker Compose
 
-This is the simplest method. Docker Compose downloads the PostgreSQL image,
+This is the simplest method. Docker Compose downloads PostgreSQL and Adminer,
 builds the FastAPI image, creates the database, waits until PostgreSQL is ready,
-and then starts the API. You do **not** need to install Python or PostgreSQL on
-Windows for this method.
+and then starts the API and graphical table viewer. You do **not** need to
+install Python, PostgreSQL, or a separate database viewer on Windows.
 
 ### 1. Install and open Docker Desktop
 
@@ -47,17 +47,17 @@ cd D:\Bank-Term-Deposit-Predictor\database_service
 If the project is stored somewhere else, open that project's
 `database_service` directory instead.
 
-### 3. Download, build, and start PostgreSQL and the API
+### 3. Download, build, and start PostgreSQL, the API, and Adminer (Database Table Viewer)
 
 ```powershell
 docker compose up --build -d
 ```
 
-The first run takes longer because Docker downloads the `postgres:16-alpine`
-and `python:3.11-slim` images and installs every Python package listed in
-`requirements.txt`.
+The first run takes longer because Docker downloads the `postgres:16-alpine`,
+`adminer`, and `python:3.11-slim` images and installs every Python package
+listed in `requirements.txt`.
 
-### 4. Confirm both containers are running
+### 4. Confirm all three containers are running
 
 ```powershell
 docker compose ps
@@ -65,8 +65,8 @@ docker compose logs postgres
 docker compose logs database-api
 ```
 
-`postgres` should show `healthy`, and `database-api` should show `running`.
-The API creates its tables automatically on startup.
+`postgres` should show `healthy`; `database-api` and `adminer` should show
+`running`. The API creates its tables automatically on startup.
 
 ### 5. Open and test the service
 
@@ -81,6 +81,41 @@ Invoke-RestMethod http://localhost:8000/health
 ```
 
 It should return a status of `healthy`.
+
+### 6. View PostgreSQL tables with Adminer
+
+Open <http://localhost:8082> and enter:
+
+| Login field | Value |
+| --- | --- |
+| System | `PostgreSQL` |
+| Server | `database_service-postgres-1` |
+| Username | `postgres` |
+| Password | `postgres` |
+| Database | `bank_marketing` |
+
+Click **Login**. Under the `public` schema, select a table and click
+**Select data**. Dashboard predictions are stored across these tables:
+
+| Table | Contents |
+| --- | --- |
+| `customers` | Customer details and prediction status |
+| `campaign_history` | Campaign inputs linked by `customer_id` |
+| `predictions` | Prediction, probability, and prediction time |
+
+Refresh **Select data** after submitting a prediction from the Dashboard to
+see the new row. Adminer is only a database administration viewer; the
+Dashboard, API Gateway, and AI Interface must not connect to Adminer. They
+continue communicating through their normal APIs.
+
+> The username and password above are development credentials for local use.
+> Use environment variables and strong secrets for any shared or production
+> deployment. Do not publish real database passwords in the repository.
+
+If you previously created Adminer manually with the container name
+`bank-adminer`, it can continue running separately. If port `8082` is already
+in use when starting Compose, stop that older viewer first with
+`docker stop bank-adminer`, then rerun `docker compose up -d`.
 
 ### Normal use after the first setup
 
