@@ -6,14 +6,14 @@ import httpx
 
 from app.config import settings
 
-# Initialize FastAPI Application
+# Initialize FastAPI Application[cite: 8]
 app = FastAPI(
     title="Bank Marketing API Gateway",
     description="Central API Gateway orchestrating Member A (AI Inference), Member C (Dashboard), and Member D (Database/Monitoring).",
     version="1.0.0"
 )
 
-# Enable CORS for Member C's Dashboard / Frontend
+# Enable CORS for Member C's Dashboard / Frontend[cite: 8]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load Microservice URLs from shared config
+# Load Microservice URLs from shared config[cite: 7, 8]
 INFERENCE_URL = settings.INFERENCE_SERVICE_URL
 DATABASE_URL = settings.DATABASE_SERVICE_URL
 MONITORING_URL = settings.MONITORING_SERVICE_URL
@@ -30,7 +30,7 @@ TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 
 
 # ----------------------------------------------------
-# PYDANTIC SCHEMAS FOR DATA VALIDATION
+# PYDANTIC SCHEMAS FOR DATA VALIDATION[cite: 8]
 # ----------------------------------------------------
 class CustomerPredictModel(BaseModel):
     phone_number: str = Field(..., example="91234567")
@@ -80,36 +80,36 @@ class CustomerUpdateModel(BaseModel):
 
 
 # ----------------------------------------------------
-# 1. HEALTH & ROOT ENDPOINTS
+# 1. HEALTH & ROOT ENDPOINTS[cite: 8]
 # ----------------------------------------------------
-@app.get("/")
+@app.get("/", tags=["Health"])
 def read_root():
     return {
         "message": "Bank Marketing API Gateway is running!",
         "docs": "Visit /docs for interactive Swagger UI documentation."
     }
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "healthy", "service": "api-gateway"}
 
 
 # ----------------------------------------------------
-# 2. PREDICT ENDPOINT (FORWARD TO MEMBER A & PERSIST TO MEMBER D)
+# 2. PREDICT ENDPOINT (FORWARD TO MEMBER A & PERSIST TO MEMBER D)[cite: 8]
 # ----------------------------------------------------
-@app.post("/api/predict")
+@app.post("/api/predict", tags=["Predictions"])
 async def predict_subscription(customer_data: CustomerPredictModel):
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         
-        # Exclude non-inference fields (phone_number and batch_id)
+        # Exclude non-inference fields (phone_number and batch_id)[cite: 8]
         inference_payload = {
             field: value
             for field, value in payload.items()
             if field not in ("phone_number", "batch_id")
         }
 
-        # Step A: Request prediction from Member A (AI Inference)
+        # Step A: Request prediction from Member A (AI Inference)[cite: 8]
         try:
             inference_response = await client.post(
                 f"{INFERENCE_URL}/predict",
@@ -129,7 +129,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 detail=f"Member A (AI Inference Service) unreachable: {exc}"
             )
 
-        # Step B: Persist customer, campaign, and prediction data to Member D.
+        # Step B: Persist customer, campaign, and prediction data to Member D[cite: 8]
         try:
             customer_payload = {
                 field: payload[field]
@@ -147,6 +147,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             )
 
             if customer_response.status_code == 409:
+                # Step 1: Retrieve existing customer records[cite: 8, 29]
                 customers_response = await client.get(
                     f"{DATABASE_URL}/customers",
                     timeout=TIMEOUT_SECONDS
@@ -166,13 +167,14 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                     )
                 customer_id = customer["customer_id"]
 
-                # Update existing customer's batch_id if provided
-                if payload.get("batch_id"):
-                    await client.put(
-                        f"{DATABASE_URL}/customers/{customer_id}",
-                        json={"batch_id": payload["batch_id"]},
-                        timeout=TIMEOUT_SECONDS
-                    )
+                # Step 2: Automatically update existing customer record with the new inputs[cite: 8, 29]
+                update_response = await client.put(
+                    f"{DATABASE_URL}/customers/{customer_id}",
+                    json=customer_payload,
+                    timeout=TIMEOUT_SECONDS
+                )
+                update_response.raise_for_status()
+
             else:
                 customer_response.raise_for_status()
                 customer_id = customer_response.json()["customer_id"]
@@ -219,12 +221,12 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 
 
 # ----------------------------------------------------
-# 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)
+# 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)[cite: 29]
 # ----------------------------------------------------
-@app.post("/api/batch-uploads")
+@app.post("/api/batch-uploads", tags=["Batch Uploads"])
 async def create_batch_upload(batch: BatchUploadModel):
     """
-    Register a new batch upload record in Member D.
+    Register a new batch upload record in Member D.[cite: 29]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -247,10 +249,10 @@ async def create_batch_upload(batch: BatchUploadModel):
             )
 
 
-@app.get("/api/batch-uploads/{batch_id}/customers")
+@app.get("/api/batch-uploads/{batch_id}/customers", tags=["Batch Uploads"])
 async def get_customers_by_batch(batch_id: int):
     """
-    Fetch all customer records associated with a specific batch ID from Member D.
+    Fetch all customer records associated with a specific batch ID from Member D.[cite: 29]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -272,10 +274,10 @@ async def get_customers_by_batch(batch_id: int):
             )
 
 
-@app.get("/api/batch-uploads/{batch_id}/results")
+@app.get("/api/batch-uploads/{batch_id}/results", tags=["Batch Uploads"])
 async def get_results_by_batch(batch_id: int):
     """
-    Fetch joined customer and prediction results for a specific batch ID from Member D.
+    Fetch joined customer and prediction results for a specific batch ID from Member D.[cite: 29]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -298,9 +300,9 @@ async def get_results_by_batch(batch_id: int):
 
 
 # ----------------------------------------------------
-# 4. GET HISTORICAL RECORDS (FORWARD TO MEMBER D)
+# 4. GET HISTORICAL RECORDS (FORWARD TO MEMBER D)[cite: 8]
 # ----------------------------------------------------
-@app.get("/api/results")
+@app.get("/api/results", tags=["Analytics"])
 async def fetch_historical_results():
     async with httpx.AsyncClient() as client:
         try:
@@ -323,12 +325,12 @@ async def fetch_historical_results():
 
 
 # ----------------------------------------------------
-# 5. SEARCH CUSTOMER BY PHONE NUMBER
+# 5. SEARCH CUSTOMER BY PHONE NUMBER[cite: 8]
 # ----------------------------------------------------
-@app.get("/api/customers/phone/{phone_number}")
+@app.get("/api/customers/phone/{phone_number}", tags=["Customers"])
 async def get_customer_by_phone(phone_number: str):
     """
-    Search for an existing customer by phone number.
+    Search for an existing customer by phone number.[cite: 8]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -374,16 +376,16 @@ async def get_customer_by_phone(phone_number: str):
 
 
 # ----------------------------------------------------
-# 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)
+# 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)[cite: 8]
 # ----------------------------------------------------
-@app.put("/api/customers/{customer_id}")
+@app.put("/api/customers/{customer_id}", tags=["Customers"])
 async def update_customer(
     customer_id: int,
     updated_data: CustomerUpdateModel
 ):
     """
     Receives updated customer records from Member C (Dashboard)
-    and forwards the PUT request to Member D (Database Service).
+    and forwards the PUT request to Member D (Database Service).[cite: 8]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -414,13 +416,13 @@ async def update_customer(
 
 
 # ----------------------------------------------------
-# 7. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)
+# 7. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)[cite: 8]
 # ----------------------------------------------------
-@app.delete("/api/customers/{customer_id}")
+@app.delete("/api/customers/{customer_id}", tags=["Customers"])
 async def delete_customer(customer_id: int):
     """
     Receives a customer deletion request from Member C (Dashboard)
-    and forwards the DELETE request to Member D (Database Service).
+    and forwards the DELETE request to Member D (Database Service).[cite: 8]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -446,9 +448,9 @@ async def delete_customer(customer_id: int):
 
 
 # ----------------------------------------------------
-# 8. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)
+# 8. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)[cite: 8]
 # ----------------------------------------------------
-@app.get("/api/logs")
+@app.get("/api/logs", tags=["Monitoring"])
 async def fetch_system_logs():
     async with httpx.AsyncClient() as client:
         try:
