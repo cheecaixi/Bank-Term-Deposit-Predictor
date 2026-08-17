@@ -1,5 +1,21 @@
 # AIAD
 
+## Start the database service
+
+The easiest setup uses Docker Compose. It downloads PostgreSQL, builds the
+FastAPI database service, waits for PostgreSQL to become ready, and starts both
+containers:
+
+```powershell
+cd D:\Bank-Term-Deposit-Predictor\database_service
+docker compose up --build -d
+docker compose ps
+```
+
+Then open <http://localhost:8000/docs>. For the full first-time setup,
+verification commands, stopping instructions, and troubleshooting, read the
+[database service guide](database_service/README.md).
+
 # 1. Project Objectives
 Machine Learning Goal: Train and validate a classification model to predict customer term deposit subscriptions using demographic and historical campaign data.
 
