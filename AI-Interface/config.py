@@ -26,7 +26,11 @@ DATA_PATH = os.path.join(
 
 
 # Prediction threshold
+<<<<<<< HEAD
+PREDICTION_THRESHOLD = 0.6
+=======
 PREDICTION_THRESHOLD = 0.60
+>>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
 
 
 # Saved model location
