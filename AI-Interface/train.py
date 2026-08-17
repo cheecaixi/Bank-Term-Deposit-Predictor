@@ -9,7 +9,8 @@ import pandas as pd
 from sklearn.model_selection import (
     train_test_split,
     RandomizedSearchCV,
-    StratifiedKFold
+    StratifiedKFold,
+    cross_val_predict
 )
 
 from sklearn.ensemble import (
@@ -376,23 +377,105 @@ def tune_model(
     return search.best_estimator_
 
 
+def find_best_threshold(
+    model,
+    X_train,
+    y_train
+):
+    """
+    Automatically find a classification threshold.
+
+    Thresholds from 0.30 to 0.80 are tested using
+    cross validated training probabilities.
+
+    A minimum precision of 0.40 is required.
+    Among valid thresholds, the threshold with the
+    highest F1 score is selected.
+    """
+
+    cv = StratifiedKFold(
+        n_splits=3,
+        shuffle=True,
+        random_state=RANDOM_STATE
+    )
+
+    y_probability = cross_val_predict(
+        model,
+        X_train,
+        y_train,
+        cv=cv,
+        method="predict_proba",
+        n_jobs=-1
+    )[:, 1]
+
+    best_threshold = 0.50
+    best_f1 = -1.0
+    found_valid_threshold = False
+
+    fallback_threshold = 0.50
+    fallback_f1 = -1.0
+
+    for threshold_value in range(30, 81):
+
+        threshold = threshold_value / 100
+
+        y_pred = (
+            y_probability >= threshold
+        ).astype(int)
+
+        precision = precision_score(
+            y_train,
+            y_pred,
+            zero_division=0
+        )
+
+        f1 = f1_score(
+            y_train,
+            y_pred,
+            zero_division=0
+        )
+
+        # Keep a fallback based on the highest F1 score
+        # in case no threshold reaches minimum precision.
+        if f1 > fallback_f1:
+            fallback_f1 = f1
+            fallback_threshold = threshold
+
+        # Main rule:
+        # precision must be at least 0.40,
+        # then select the highest F1 score.
+        if (
+            precision >= 0.40
+            and f1 > best_f1
+        ):
+            best_f1 = f1
+            best_threshold = threshold
+            found_valid_threshold = True
+
+    if not found_valid_threshold:
+        best_threshold = fallback_threshold
+
+    return best_threshold
+
+
 def evaluate_model(
     model,
     X_test,
-    y_test
+    y_test,
+    threshold
 ):
     """
-    Evaluate one trained model using the default
-    classification threshold of 0.50.
+    Evaluate one trained model using its automatically
+    selected classification threshold.
     """
-
-    y_pred = model.predict(
-        X_test
-    )
 
     y_probability = model.predict_proba(
         X_test
     )[:, 1]
+
+    y_pred = (
+        y_probability >= threshold
+    ).astype(int)
 
     results = {
 
@@ -458,6 +541,7 @@ def train_models(
 
     best_model = None
     best_model_name = None
+    best_model_threshold = 0.50
     best_roc_auc = 0
 
     for model_name, config in model_configs.items():
@@ -474,10 +558,23 @@ def train_models(
             model_name
         ] = best_model_for_type
 
+        best_threshold = find_best_threshold(
+            best_model_for_type,
+            X_train,
+            y_train
+        )
+
+        print()
+        print(
+            f"Recommended threshold: "
+            f"{best_threshold:.2f}"
+        )
+
         model_results, y_pred = evaluate_model(
             best_model_for_type,
             X_test,
-            y_test
+            y_test,
+            best_threshold
         )
 
         print()
@@ -530,6 +627,8 @@ def train_models(
         results.append(
             {
                 "Model": model_name,
+                "Threshold":
+                    best_threshold,
                 "Accuracy":
                     model_results["Accuracy"],
                 "Precision":
@@ -560,6 +659,10 @@ def train_models(
                 model_name
             )
 
+            best_model_threshold = (
+                best_threshold
+            )
+
     results_df = pd.DataFrame(
         results
     )
@@ -574,6 +677,7 @@ def train_models(
     return (
         best_model,
         best_model_name,
+        best_model_threshold,
         results_df,
         trained_models
     )
@@ -691,6 +795,7 @@ def main():
     (
         best_model,
         best_model_name,
+        best_model_threshold,
         results_df,
         trained_models
     ) = train_models(
@@ -735,6 +840,18 @@ def main():
         f"{results_df.iloc[0]['ROC AUC']:.4f}"
     )
 
+    print(
+        f"Recommended threshold: "
+        f"{best_model_threshold:.2f}"
+    )
+
+    print()
+    print(
+        "Copy this threshold into "
+        "PREDICTION_THRESHOLD in config.py "
+        "before running evaluate.py."
+    )
+
     save_model(
         best_model,
         best_model_name
@@ -744,7 +861,6 @@ def main():
     print(
         "Training completed successfully."
     )
-
 
 if __name__ == "__main__":
     main()
