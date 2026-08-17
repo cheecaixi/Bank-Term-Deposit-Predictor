@@ -87,12 +87,6 @@ def create_model_configs(scale_pos_weight):
 
     Different imbalance handling methods are used because
     each algorithm responds differently to imbalance.
-
-    Random Forest, XGBoost, and LightGBM all support native
-    class weighting, so they use class_weight / scale_pos_weight
-    directly. GradientBoostingClassifier has no native class
-    weighting option, so SMOTE oversampling is used instead for
-    that model specifically.
     """
 
     model_configs = {
@@ -339,11 +333,6 @@ def tune_model(
 
     ROC AUC is used as the main tuning metric because
     the target classes are imbalanced.
-
-    Returns both the best fitted estimator and its
-    cross-validation ROC AUC score. The CV score is what
-    should be used to compare models against each other,
-    since it is computed without ever touching the test set.
     """
 
     print()
@@ -385,7 +374,7 @@ def tune_model(
         f"{search.best_score_:.4f}"
     )
 
-    return search.best_estimator_, search.best_score_
+    return search.best_estimator_
 
 
 def find_best_threshold(
@@ -469,90 +458,6 @@ def find_best_threshold(
     return best_threshold
 
 
-<<<<<<< HEAD
-def find_best_threshold(
-    model,
-    X_train,
-    y_train
-):
-    """
-    Automatically find a classification threshold.
-
-    Thresholds from 0.30 to 0.80 are tested using
-    cross validated training probabilities.
-
-    A minimum precision of 0.40 is required.
-    Among valid thresholds, the threshold with the
-    highest F1 score is selected.
-    """
-
-    cv = StratifiedKFold(
-        n_splits=3,
-        shuffle=True,
-        random_state=RANDOM_STATE
-    )
-
-    y_probability = cross_val_predict(
-        model,
-        X_train,
-        y_train,
-        cv=cv,
-        method="predict_proba",
-        n_jobs=-1
-    )[:, 1]
-
-    best_threshold = 0.50
-    best_f1 = -1.0
-    found_valid_threshold = False
-
-    fallback_threshold = 0.50
-    fallback_f1 = -1.0
-
-    for threshold_value in range(30, 81):
-
-        threshold = threshold_value / 100
-
-        y_pred = (
-            y_probability >= threshold
-        ).astype(int)
-
-        precision = precision_score(
-            y_train,
-            y_pred,
-            zero_division=0
-        )
-
-        f1 = f1_score(
-            y_train,
-            y_pred,
-            zero_division=0
-        )
-
-        # Keep a fallback based on the highest F1 score
-        # in case no threshold reaches minimum precision.
-        if f1 > fallback_f1:
-            fallback_f1 = f1
-            fallback_threshold = threshold
-
-        # Main rule:
-        # precision must be at least 0.40,
-        # then select the highest F1 score.
-        if (
-            precision >= 0.40
-            and f1 > best_f1
-        ):
-            best_f1 = f1
-            best_threshold = threshold
-            found_valid_threshold = True
-
-    if not found_valid_threshold:
-        best_threshold = fallback_threshold
-
-    return best_threshold
-
-
-=======
->>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
 def evaluate_model(
     model,
     X_test,
@@ -560,43 +465,10 @@ def evaluate_model(
     threshold
 ):
     """
-<<<<<<< HEAD
-    Evaluate one trained model on the held-out test set,
-    using the default classification threshold of 0.50.
-
-    This is used for FINAL REPORTING only. It must never be
-    used to decide which model "wins" -- doing so would leak
-    information from the test set into model selection, which
-    would make the reported final ROC AUC optimistic.
-=======
     Evaluate one trained model using its automatically
     selected classification threshold.
->>>>>>> 9d51f97 (Updated model training and evaluation)
-    """
-=======
-<<<<<<< Updated upstream
-    Evaluate one trained model using its automatically
-    selected classification threshold.
-=======
-<<<<<<< HEAD
-    Evaluate one trained model on the held-out test set,
-    using the default classification threshold of 0.50.
->>>>>>> 43fd767d3a1317c20de10f897863bfed72a0f6a5
-
-<<<<<<< HEAD
-    This is used for FINAL REPORTING only. It must never be
-    used to decide which model "wins" -- doing so would leak
-    information from the test set into model selection, which
-    would make the reported final ROC AUC optimistic.
-=======
-    Evaluate one trained model using its automatically
-    selected classification threshold.
->>>>>>> 9d51f97 (Updated model training and evaluation)
->>>>>>> Stashed changes
     """
 
-=======
->>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
     y_probability = model.predict_proba(
         X_test
     )[:, 1]
@@ -647,12 +519,6 @@ def train_models(
 ):
     """
     Tune, train, and compare all models.
-
-    Model selection (deciding which model is "best") is based
-    on cross-validation ROC AUC, computed entirely on the
-    training set. The test set is only used afterwards, to
-    report an honest, unbiased performance estimate for each
-    model -- it never influences which model is chosen.
     """
 
     scale_pos_weight = calculate_scale_pos_weight(
@@ -675,31 +541,12 @@ def train_models(
 
     best_model = None
     best_model_name = None
-<<<<<<< HEAD
-    best_cv_roc_auc = 0
-=======
-<<<<<<< HEAD
-<<<<<<< Updated upstream
     best_model_threshold = 0.50
     best_roc_auc = 0
-=======
-<<<<<<< HEAD
-    best_cv_roc_auc = 0
-=======
-    best_model_threshold = 0.50
-    best_roc_auc = 0
->>>>>>> 9d51f97 (Updated model training and evaluation)
->>>>>>> Stashed changes
->>>>>>> 43fd767d3a1317c20de10f897863bfed72a0f6a5
-=======
-    best_model_threshold = 0.50
-    best_roc_auc = 0
->>>>>>> 9d51f97 (Updated model training and evaluation)
->>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
 
     for model_name, config in model_configs.items():
 
-        best_model_for_type, cv_roc_auc = tune_model(
+        best_model_for_type = tune_model(
             model_name,
             config["pipeline"],
             config["params"],
@@ -762,11 +609,6 @@ def train_models(
             f"{model_results['ROC AUC']:.4f}"
         )
 
-        print(
-            f"CV ROC AUC (used for selection): "
-            f"{cv_roc_auc:.4f}"
-        )
-
         print()
         print("Classification Report:")
 
@@ -785,29 +627,8 @@ def train_models(
         results.append(
             {
                 "Model": model_name,
-<<<<<<< HEAD
-                "CV ROC AUC":
-                    cv_roc_auc,
-=======
-<<<<<<< HEAD
-<<<<<<< Updated upstream
                 "Threshold":
                     best_threshold,
-=======
-<<<<<<< HEAD
-                "CV ROC AUC":
-                    cv_roc_auc,
-=======
-                "Threshold":
-                    best_threshold,
->>>>>>> 9d51f97 (Updated model training and evaluation)
->>>>>>> Stashed changes
->>>>>>> 43fd767d3a1317c20de10f897863bfed72a0f6a5
-=======
-                "Threshold":
-                    best_threshold,
->>>>>>> 9d51f97 (Updated model training and evaluation)
->>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
                 "Accuracy":
                     model_results["Accuracy"],
                 "Precision":
@@ -821,16 +642,13 @@ def train_models(
             }
         )
 
-        # Selection uses the cross-validation score, NOT the
-        # test-set score. This keeps the test set completely
-        # unseen until final reporting.
         if (
-            cv_roc_auc
-            > best_cv_roc_auc
+            model_results["ROC AUC"]
+            > best_roc_auc
         ):
 
-            best_cv_roc_auc = (
-                cv_roc_auc
+            best_roc_auc = (
+                model_results["ROC AUC"]
             )
 
             best_model = (
@@ -849,11 +667,8 @@ def train_models(
         results
     )
 
-    # Sorted by CV ROC AUC since that is the metric that
-    # actually decided the winner. Test ROC AUC is included
-    # alongside it for transparency, but is reporting-only.
     results_df = results_df.sort_values(
-        "CV ROC AUC",
+        "ROC AUC",
         ascending=False
     ).reset_index(
         drop=True
@@ -1021,12 +836,7 @@ def main():
     )
 
     print(
-        f"Selected by CV ROC AUC: "
-        f"{results_df.iloc[0]['CV ROC AUC']:.4f}"
-    )
-
-    print(
-        f"Test set ROC AUC (unbiased estimate): "
+        f"ROC AUC: "
         f"{results_df.iloc[0]['ROC AUC']:.4f}"
     )
 
@@ -1042,21 +852,6 @@ def main():
         "before running evaluate.py."
     )
 
-<<<<<<< HEAD
-    print(
-        f"Recommended threshold: "
-        f"{best_model_threshold:.2f}"
-    )
-
-    print()
-    print(
-        "Copy this threshold into "
-        "PREDICTION_THRESHOLD in config.py "
-        "before running evaluate.py."
-    )
-
-=======
->>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
     save_model(
         best_model,
         best_model_name
