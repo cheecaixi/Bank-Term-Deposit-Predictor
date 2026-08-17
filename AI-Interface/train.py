@@ -469,6 +469,7 @@ def find_best_threshold(
     return best_threshold
 
 
+<<<<<<< HEAD
 def find_best_threshold(
     model,
     X_train,
@@ -550,6 +551,8 @@ def find_best_threshold(
     return best_threshold
 
 
+=======
+>>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
 def evaluate_model(
     model,
     X_test,
@@ -565,6 +568,10 @@ def evaluate_model(
     used to decide which model "wins" -- doing so would leak
     information from the test set into model selection, which
     would make the reported final ROC AUC optimistic.
+=======
+    Evaluate one trained model using its automatically
+    selected classification threshold.
+>>>>>>> 9d51f97 (Updated model training and evaluation)
     """
 =======
 <<<<<<< Updated upstream
@@ -576,6 +583,7 @@ def evaluate_model(
     using the default classification threshold of 0.50.
 >>>>>>> 43fd767d3a1317c20de10f897863bfed72a0f6a5
 
+<<<<<<< HEAD
     This is used for FINAL REPORTING only. It must never be
     used to decide which model "wins" -- doing so would leak
     information from the test set into model selection, which
@@ -587,6 +595,8 @@ def evaluate_model(
 >>>>>>> Stashed changes
     """
 
+=======
+>>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
     y_probability = model.predict_proba(
         X_test
     )[:, 1]
@@ -668,6 +678,7 @@ def train_models(
 <<<<<<< HEAD
     best_cv_roc_auc = 0
 =======
+<<<<<<< HEAD
 <<<<<<< Updated upstream
     best_model_threshold = 0.50
     best_roc_auc = 0
@@ -680,6 +691,11 @@ def train_models(
 >>>>>>> 9d51f97 (Updated model training and evaluation)
 >>>>>>> Stashed changes
 >>>>>>> 43fd767d3a1317c20de10f897863bfed72a0f6a5
+=======
+    best_model_threshold = 0.50
+    best_roc_auc = 0
+>>>>>>> 9d51f97 (Updated model training and evaluation)
+>>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
 
     for model_name, config in model_configs.items():
 
@@ -773,6 +789,7 @@ def train_models(
                 "CV ROC AUC":
                     cv_roc_auc,
 =======
+<<<<<<< HEAD
 <<<<<<< Updated upstream
                 "Threshold":
                     best_threshold,
@@ -786,6 +803,11 @@ def train_models(
 >>>>>>> 9d51f97 (Updated model training and evaluation)
 >>>>>>> Stashed changes
 >>>>>>> 43fd767d3a1317c20de10f897863bfed72a0f6a5
+=======
+                "Threshold":
+                    best_threshold,
+>>>>>>> 9d51f97 (Updated model training and evaluation)
+>>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
                 "Accuracy":
                     model_results["Accuracy"],
                 "Precision":
@@ -1020,6 +1042,7 @@ def main():
         "before running evaluate.py."
     )
 
+<<<<<<< HEAD
     print(
         f"Recommended threshold: "
         f"{best_model_threshold:.2f}"
@@ -1032,6 +1055,8 @@ def main():
         "before running evaluate.py."
     )
 
+=======
+>>>>>>> 5826a413b0539b22a3ec61168d77b0873d64496e
     save_model(
         best_model,
         best_model_name
