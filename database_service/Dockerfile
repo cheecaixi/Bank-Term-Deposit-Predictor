@@ -1,3 +1,5 @@
+# This image runs only the FastAPI database service. PostgreSQL and the
+# Adminer table viewer run as separate containers defined in compose.yaml.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
