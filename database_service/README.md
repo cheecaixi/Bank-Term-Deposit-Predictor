@@ -15,7 +15,102 @@ Install the following before starting:
 > starting the FastAPI database service. The API cannot start or serve requests
 > when PostgreSQL is unavailable.
 
-## Run locally
+## Recommended: start everything with Docker Compose
+
+This is the simplest method. Docker Compose downloads the PostgreSQL image,
+builds the FastAPI image, creates the database, waits until PostgreSQL is ready,
+and then starts the API. You do **not** need to install Python or PostgreSQL on
+Windows for this method.
+
+### 1. Install and open Docker Desktop
+
+Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/),
+open it, and wait until it reports that the Docker engine is running.
+
+Open PowerShell and verify Docker:
+
+```powershell
+docker --version
+docker compose version
+docker info
+```
+
+Do not continue if `docker info` reports that it cannot connect to the Docker
+engine.
+
+### 2. Open the database-service directory
+
+```powershell
+cd D:\Bank-Term-Deposit-Predictor\database_service
+```
+
+If the project is stored somewhere else, open that project's
+`database_service` directory instead.
+
+### 3. Download, build, and start PostgreSQL and the API
+
+```powershell
+docker compose up --build -d
+```
+
+The first run takes longer because Docker downloads the `postgres:16-alpine`
+and `python:3.11-slim` images and installs every Python package listed in
+`requirements.txt`.
+
+### 4. Confirm both containers are running
+
+```powershell
+docker compose ps
+docker compose logs postgres
+docker compose logs database-api
+```
+
+`postgres` should show `healthy`, and `database-api` should show `running`.
+The API creates its tables automatically on startup.
+
+### 5. Open and test the service
+
+Open the interactive API documentation:
+
+<http://localhost:8000/docs>
+
+Also verify the health endpoint in PowerShell:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+```
+
+It should return a status of `healthy`.
+
+### Normal use after the first setup
+
+Start the service again:
+
+```powershell
+cd D:\Bank-Term-Deposit-Predictor\database_service
+docker compose up -d
+```
+
+Stop both containers without deleting the database data:
+
+```powershell
+docker compose down
+```
+
+View live API logs:
+
+```powershell
+docker compose logs -f database-api
+```
+
+Press `Ctrl+C` to stop following the logs; the containers keep running.
+
+> `requirements.txt` installs Python packages only. The PostgreSQL Python
+> driver is `psycopg2-binary`. The PostgreSQL server is supplied by the
+> `postgres:16-alpine` image declared in `compose.yaml`, because a database
+> server cannot be installed from a Python requirements file.
+
+## Alternative: run the API locally and only PostgreSQL in Docker
 
 All commands below use PowerShell and start from the project root.
 
@@ -233,7 +328,7 @@ docker stop bank-postgres
 The container and its data remain available and can be restarted with
 `docker start bank-postgres`.
 
-## Run the API in Docker
+## Run the API container manually
 
 Start PostgreSQL as described above. Then build the API image:
 
@@ -296,21 +391,47 @@ docker ps
 
 ### `failed to connect to the docker API`
 
-Open Docker Desktop, wait until the engine finishes starting, and rerun:
+If the message mentions
+`dockerDesktopLinuxEngine` or says that the named pipe cannot be found, the
+Docker command-line tool is installed but the Docker Desktop engine is not
+running.
+
+1. Open the Windows **Start** menu.
+2. Search for and open **Docker Desktop**.
+3. If Docker Desktop asks you to accept terms, update WSL, or restart Windows,
+   complete that prompt first.
+4. Wait until Docker Desktop displays **Engine running**. Do not close Docker
+   Desktop.
+5. Confirm the engine is ready in PowerShell:
 
 ```powershell
 docker info
 ```
 
-### Container name already exists
-
-Start the existing container:
+Only after `docker info` displays both `Client` and `Server` information, run:
 
 ```powershell
-docker start bank-postgres
+cd D:\Bank-Term-Deposit-Predictor\database_service
+docker compose up --build -d
+docker compose ps
 ```
 
-Inspect all containers if needed:
+If Docker Desktop is already open, select **Troubleshoot** and then
+**Restart Docker Desktop**. If it still cannot start, restart Windows and open
+Docker Desktop before opening the project terminal.
+
+### Container name already exists
+
+The current Compose setup generates its own container names, so it can coexist
+with stopped containers created by the older manual setup. Pull the latest
+`compose.yaml`, or remove both `container_name:` lines if they are present in
+your local copy, and run:
+
+```powershell
+docker compose up --build -d
+```
+
+You do not need to delete the old container. Inspect all containers if needed:
 
 ```powershell
 docker ps -a
