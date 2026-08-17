@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
+from sklearn.inspection import permutation_importance
 
 from sklearn.metrics import (
     accuracy_score,
@@ -389,6 +390,99 @@ def create_precision_recall_curve(
     print(file_path)
 
 
+def create_feature_importance(
+    model,
+    X_test,
+    y_test
+):
+    """
+    Calculate and save feature importance
+    for the final trained model.
+    """
+
+    os.makedirs(
+        RESULTS_FOLDER,
+        exist_ok=True
+    )
+
+    # Calculate permutation feature importance
+    importance = permutation_importance(
+        model,
+        X_test,
+        y_test,
+        scoring="roc_auc",
+        n_repeats=10,
+        random_state=RANDOM_STATE
+    )
+
+    # Create dataframe
+    importance_df = pd.DataFrame({
+        "Feature": X_test.columns,
+        "Importance": importance.importances_mean
+    })
+
+    # Sort features from highest importance
+    importance_df = importance_df.sort_values(
+        by="Importance",
+        ascending=False
+    )
+
+    # Save results into CSV
+    csv_path = os.path.join(
+        RESULTS_FOLDER,
+        "feature_importance.csv"
+    )
+
+    importance_df.to_csv(
+        csv_path,
+        index=False
+    )
+
+    # Create feature importance graph
+    plt.figure(
+        figsize=(10, 6)
+    )
+
+    plt.barh(
+        importance_df["Feature"],
+        importance_df["Importance"]
+    )
+
+    plt.xlabel(
+        "Importance"
+    )
+
+    plt.ylabel(
+        "Feature"
+    )
+
+    plt.title(
+        "Feature Importance"
+    )
+
+    # Highest importance displayed at the top
+    plt.gca().invert_yaxis()
+
+    plt.tight_layout()
+
+    image_path = os.path.join(
+        RESULTS_FOLDER,
+        "feature_importance.png"
+    )
+
+    plt.savefig(
+        image_path,
+        dpi=300
+    )
+
+    plt.close()
+
+    print()
+    print("Feature importance saved:")
+    print(csv_path)
+    print(image_path)
+
+
 def main():
 
     print("=" * 60)
@@ -444,6 +538,13 @@ def main():
     create_precision_recall_curve(
         y_test,
         y_probability
+    )
+
+    # Create feature importance
+    create_feature_importance(
+        model,
+        X_test,
+        y_test
     )
 
     print()
