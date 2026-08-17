@@ -283,14 +283,15 @@ def predict_many(
     return out
 
 
-def get_batch_customers(batch_id: int):
+def get_batch_results(batch_id: int):
     """
-    Retrieve all customers belonging to a specific batch.
+    Retrieve customers and prediction results
+    belonging to a specific batch.
     """
 
     url = (
         f"{st.session_state.gateway_url}"
-        f"/api/batch-uploads/{batch_id}/customers"
+        f"/api/batch-uploads/{batch_id}/results"
     )
 
     response = requests.get(
@@ -1322,10 +1323,11 @@ with tab2:
     # =============================================================
     # 3. RETRIEVE EXISTING BATCH
     # =============================================================
-
     st.divider()
 
-    st.markdown("### 🔎 Retrieve Existing Batch")
+    st.markdown(
+        "### 🔎 Retrieve Existing Batch"
+    )
 
     st.write(
         "Enter a Batch ID to retrieve customers and prediction "
@@ -1353,9 +1355,7 @@ with tab2:
 
         else:
 
-            batch_id = int(
-                batch_id_input
-            )
+            batch_id = int(batch_id_input)
 
             try:
 
@@ -1363,22 +1363,36 @@ with tab2:
                     f"Retrieving Batch {batch_id}..."
                 ):
 
-                    batch_data = get_batch_customers(
+                    # IMPORTANT:
+                    # Retrieve joined customer + prediction results
+                    batch_data = get_batch_results(
                         batch_id
                     )
+
+                # -------------------------------------------------
+                # CHECK WHETHER DATA EXISTS
+                # -------------------------------------------------
 
                 if not batch_data:
 
                     st.warning(
-                        f"⚠️ No customer records were found "
-                        f"for Batch ID {batch_id}."
+                        f"⚠️ No customer records or prediction results "
+                        f"were found for Batch ID {batch_id}."
                     )
 
                 else:
 
+                    # -------------------------------------------------
+                    # CONVERT RESPONSE TO DATAFRAME
+                    # -------------------------------------------------
+
                     retrieved_df = pd.DataFrame(
                         batch_data
                     )
+
+                    # -------------------------------------------------
+                    # SAVE RESULTS
+                    # -------------------------------------------------
 
                     st.session_state.last_batch_results = (
                         retrieved_df
@@ -1390,10 +1404,8 @@ with tab2:
 
                     st.success(
                         f"✅ Batch {batch_id} loaded successfully — "
-                        f"{len(retrieved_df):,} customers found."
+                        f"{len(retrieved_df):,} records found."
                     )
-
-                    st.rerun()
 
             except requests.exceptions.HTTPError as error:
 
@@ -1402,17 +1414,17 @@ with tab2:
                     f"{error}"
                 )
 
-            except requests.exceptions.ConnectionError:
+                if error.response is not None:
+
+                    st.code(
+                        error.response.text
+                    )
+
+            except requests.exceptions.RequestException as error:
 
                 st.error(
-                    "❌ Unable to connect to the API Gateway."
-                )
-
-            except requests.exceptions.Timeout:
-
-                st.error(
-                    "❌ The request timed out while retrieving "
-                    "the batch."
+                    "❌ Unable to connect to the API Gateway. "
+                    "Please check that the Gateway is running."
                 )
 
             except Exception as error:
