@@ -219,7 +219,6 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 
         return prediction_result
 
-
 # ----------------------------------------------------
 # 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)[cite: 29]
 # ----------------------------------------------------
