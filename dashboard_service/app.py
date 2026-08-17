@@ -39,7 +39,7 @@ CONTACT_OPTIONS = ["unknown", "telephone", "cellular"]
 MONTH_OPTIONS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 POUTCOME_OPTIONS = ["unknown", "other", "failure", "success"]
 
-st.set_page_config(page_title="Bank Marketing Dashboard", layout="wide", page_icon="🏦")
+st.set_page_config(page_title="Bank Marketing Dashboard", layout="wide", page_icon="💰")
 
 # ---------------------------------------------------------------
 # SESSION STATE
@@ -241,15 +241,13 @@ def predict_many(df: pd.DataFrame, progress_callback=None):
 # SIDEBAR -- API Gateway connection settings
 # ---------------------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Settings")
-    st.markdown("### 🔌 API Gateway")
+    st.header("⚙️ System Settings")
+    st.caption("For authorised system administrators")
     st.session_state.gateway_url = st.text_input(
         "Gateway URL",
         value=st.session_state.gateway_url,
         help=(
-            "Address of the FastAPI API Gateway used by the "
-            "dashboard to access the AI Inference Service."
-        )
+            "Internal address of the API Gateway.")
     )
 
     if st.button(
@@ -286,55 +284,29 @@ with st.sidebar:
             )
     st.divider()
 
-    # -----------------------------------------------------------
-    # CONNECTION STATUS
-    # -----------------------------------------------------------
-    st.markdown("### 📡 System Status")
-    st.caption(
-        "🟢 Live AI prediction mode"
-    )
-    st.caption(
-        f"Gateway: {st.session_state.gateway_url}"
-    )
-    st.caption(
-        f"Predictions this session: "
-        f"{len(st.session_state.history)}"
-    )
-
 # ---------------------------------------------------------------
 # HEADER
 # ---------------------------------------------------------------
-st.title("🏦 Bank Marketing AI Dashboard")
-st.caption(
-    f"🟢 Live AI Prediction System • "
-    f"API Gateway: {st.session_state.gateway_url}"
-)
+st.title("💰 Bank Marketing AI Dashboard")
+st.caption(f"🟢 System operational ")
 st.write(
-    "Use the AI-powered prediction system to assess customer "
-    "likelihood of subscribing to a term deposit, score multiple "
-    "customers for campaign prioritisation, and review historical "
-    "prediction results."
+    "AI-assisted customer prioritisation for term deposit campaigns."
 )
-tab1, tab2, tab3 = st.tabs(["🧑 Customer Prediction", "📁 Batch Customer Prediction", "📈 Analyst View"])
+tab1, tab2, tab3 = st.tabs(["👨‍💼 Customer Prediction", "📂 Batch Prediction", "📊 Campaign Analytics"])
 
 # ---------------------------------------------------------------
 # TAB 1: SINGLE CUSTOMER PREDICTION
 # ---------------------------------------------------------------
 with tab1:
 
-    st.subheader("🧑 Customer Subscription Prediction")
+    st.subheader("👨‍💼 Customer Subscription Prediction")
 
     st.write(
-        "Search for an existing customer using their phone number, "
-        "or enter a new customer's information manually. "
-        "The AI model then predicts the customer's likelihood of "
-        "subscribing to a term deposit."
+        "Assess a customer's likelihood of subscribing to a term deposit."
     )
 
     st.info(
-        "💡 The phone number is used only to identify the customer "
-        "and retrieve their saved information. It is NOT used by "
-        "the AI model for prediction."
+        "💡 Search the customer database before entering or reviewing customer details."
     )
 
     # =============================================================
@@ -351,9 +323,7 @@ with tab1:
             "Phone Number",
             placeholder="e.g. 91234567",
             help=(
-                "Used to search for an existing customer in the "
-                "database. The phone number is not used as a "
-                "prediction feature."
+                "Used to identify an existing customer. It is not used by the prediction model."
             )
         )
 
@@ -381,7 +351,7 @@ with tab1:
 
         else:
 
-            with st.spinner("Searching customer database..."):
+            with st.spinner("Searching customer records..."):
 
                 try:
 
@@ -396,9 +366,8 @@ with tab1:
                         st.session_state.customer_id = None
 
                         st.info(
-                            "ℹ️ No existing customer was found. "
-                            "Please enter the customer's information "
-                            "manually below."
+                            "ℹ️ No existing customer was found. " \
+                            "You can enter the customer information manually below."
                         )
 
                     else:
@@ -515,8 +484,7 @@ with tab1:
         st.markdown("### 👤 Customer Information")
 
         st.caption(
-            "Basic information used to identify the customer's "
-            "profile and support the prediction."
+            "Basic demographic and financial information."
         )
 
         col1, col2, col3 = st.columns(3)
@@ -1159,8 +1127,10 @@ with tab2:
     # =============================================================
     # DISPLAY RESULTS
     # =============================================================
-    if "last_batch_results" in st.session_state:
-
+    if (
+        "last_batch_results" in st.session_state
+        and st.session_state.last_batch_results is not None
+    ):
         results_df = st.session_state.last_batch_results
 
         st.divider()
