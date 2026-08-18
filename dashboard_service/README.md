@@ -1,282 +1,99 @@
-# Dashboard Service — Bank Marketing AI Application
+# Bank Marketing Dashboard – Member C
 
-**Owner:** Student C  
-**Project:** EGT307 — Bank Marketing & Customer Behaviour
+## Project Overview
+A Streamlit dashboard microservice for the Bank Marketing AI system. It allows users to:
+- Predict subscription likelihood for individual customers.
+- Upload and process customer batches.
+- View campaign analytics and prediction results.
 
-## Overview
+The dashboard communicates only with the API Gateway.
 
-The Dashboard Service is a Streamlit web application that provides a user
-interface for customer prediction and campaign analysis.
+## System Architecture
 
-It contains three main tabs:
-
-1. **Single Prediction** — Predicts one customer's likelihood of subscribing
-   to a term deposit during a live customer call.
-2. **Batch Prediction** — Uploads a CSV of multiple customers and generates
-   predictions for the entire dataset.
-3. **Analyst View** — Displays historical prediction statistics and
-   customer-segment insights.
-
-The Dashboard communicates with backend services **only through the API
-Gateway**.
+The project follows a microservices architecture consisting of independent services.
 
 ```text
-[Dashboard]
-     │
-     ▼
-[API Gateway]
-     │
-     ├──► [AI Inference Service]
-     │
-     ├──► [Database Service]
-     │
-     └──► [Monitoring Service]
-```
+                    ┌─────────────────────┐
+                    │       User          │
+                    │    Web Browser      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Dashboard Service   │
+                    │     Streamlit       │
+                    │       :8501         │
+                    └──────────┬──────────┘
+                               │
+                               │ HTTP
+                               ▼
+                    ┌─────────────────────┐
+                    │    API Gateway      │
+                    │       :8080         │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+              ▼                ▼                ▼
+       ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
+       │ AI Inference│  │  Database   │  │  Monitoring  │
+       │   Service   │  │   Service   │  │   Service    │
+       └─────────────┘  └─────────────┘  └──────────────┘
 
----
+## Microservice
+Dashboard Service (Member C)
+- Technology: Python, Streamlit, Pandas
+- Port: 8501
+- Gateway: http://localhost:8080
+- Main file: app.py
 
-## Main Features
-
-### 1. Single Prediction
-
-Designed for telesales agents or bank staff during a customer call.
-
-The agent enters 15 customer features:
-
-- Age
-- Job
-- Marital status
-- Education
-- Credit default
-- Account balance
-- Housing loan
-- Personal loan
-- Contact method
-- Last contact day
-- Last contact month
-- Current campaign contacts
-- Days since previous contact
-- Previous campaign contacts
-- Previous campaign outcome
-
-The Dashboard sends the data to the API Gateway, which forwards it to the
-AI Inference Service.
-
-The result displays:
-
-- Subscription probability
-- Predicted outcome
-- Prediction status
-
-The prediction is also stored through the Database Service for later
-analysis.
-
-### 2. Batch Prediction
-
-Allows users to upload a CSV containing multiple customer records.
-
-The Dashboard:
-
-1. Validates the required columns.
-2. Displays a preview of the uploaded data.
-3. Sends customers for prediction through the API Gateway.
-4. Displays and sorts prediction results.
-5. Allows the results to be downloaded as a CSV file.
-
-Batch prediction is useful for analysing a larger customer list before or
-during a marketing campaign.
-
-### 3. Analyst View
-
-Provides an overview of historical model predictions retrieved through the
-API Gateway.
-
-It can display:
-
-- Total predictions
-- Predicted subscription rate
-- High-potential customers
-- Prediction rate by job type
-- Historical prediction records
-
-> The subscription rate represents **model-predicted subscriptions**, not
-> confirmed customer conversions.
-
----
-
-## System Communication
-
-### Single Prediction
-
-```text
-Customer
-   │
-   ▼
-Dashboard
-   │
-   │ POST /api/predict
-   ▼
-API Gateway
-   │
-   ▼
-AI Inference Service
-   │
-   ▼
-Prediction Result
-   │
-   ├──► Database Service
-   │
-   ▼
-Dashboard
-```
-
-### Analyst View
-
-```text
-Dashboard
-   │
-   │ GET /api/results
-   ▼
-API Gateway
-   │
-   ▼
-Database Service
-   │
-   ▼
-PostgreSQL
-```
-
-The Dashboard does not directly call the Inference, Database, or Monitoring
-services.
-
----
-
-## API Gateway Endpoints Used
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/api/predict` | Send one customer for prediction |
-| `GET` | `/api/results` | Retrieve historical prediction records |
-
-The API Gateway handles communication between the Dashboard and backend
-microservices.
-
----
-
-## Running Locally
-
-### Prerequisites
-
-- Python 3.11+
-- API Gateway running
-- Required backend services running
-
-### Install Dependencies
-
-```powershell
-cd dashboard-service
-python -m pip install -r requirements.txt
-```
-
-### Start Dashboard
-
-```powershell
-streamlit run app.py
-```
-
-Open:
-
-```text
-http://localhost:8501
-```
-
-The Dashboard connects to the API Gateway at:
-
-```text
-http://localhost:8080
-```
-
----
-
-## Configuration
-
-The API Gateway URL can be configured using the `GATEWAY_URL` environment
-variable.
-
-### PowerShell
-
-```powershell
-$env:GATEWAY_URL = "http://localhost:8080"
-streamlit run app.py
-```
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `GATEWAY_URL` | API Gateway address | `http://localhost:8080` |
-
----
-
-## Docker
-
-Build the image:
-
-```powershell
-docker build -t dashboard-service .
-```
-
-Run the Dashboard:
-
-```powershell
-docker run -p 8501:8501 `
-  -e GATEWAY_URL=http://host.docker.internal:8080 `
-  dashboard-service
-```
-
-Open:
-
-```text
-http://localhost:8501
-```
-
----
-
-## Service Dependencies
-
-| Service | Purpose | Port |
-|---|---|---:|
-| Dashboard | User interface | 8501 |
-| API Gateway | Request routing | 8080 |
-| AI Inference | ML prediction | 7000 |
-| Database Service | Customer and prediction storage | 8000 |
-| PostgreSQL | Persistent database | 5432 |
-| Monitoring Service | System monitoring and logging | 7002 |
-
----
-
-## Project Structure
-
-```text
-dashboard-service/
-│
+## Project Files
+dashboard_service/
 ├── app.py
 ├── requirements.txt
 ├── Dockerfile
+├── .dockerignore
+├── .gitignore
 └── README.md
-```
 
----
+## Requirements
+Install dependencies:
+pip install -r requirements.txt
 
-## Current Status
+Main dependencies:
+- Streamlit
+- Pandas
+- Requests
 
-The Dashboard Service provides:
+hashlib is included in Python's standard library and does not need to be added to requirements.txt.
 
-- Real-time single customer prediction
-- Batch customer prediction
-- Historical prediction analytics
-- API Gateway integration
-- CSV upload and result download
-- Docker support
-- Kubernetes deployment support
+## Run Locally
+streamlit run app.py
 
-The Dashboard is the **presentation layer** of the Bank Marketing
-microservices system and relies on the API Gateway for backend communication.
+Open:
+http://localhost:8501
+
+## Run with Docker
+Build:
+docker build -t bank-dashboard .
+
+Run:
+docker run -p 8501:8501 -e GATEWAY_URL=http://host.docker.internal:8080 bank-dashboard
+
+## Kubernetes
+Deploy using the Dashboard Deployment and Service YAML files:
+
+kubectl apply -f dashboard-deployment.yaml
+kubectl apply -f dashboard-service.yaml
+
+Check:
+kubectl get pods
+kubectl get services
+
+## Dataset
+The system uses the Bank Marketing Dataset to predict whether customers will subscribe to a term deposit.
+
+## Known Limitations
+- The Dashboard requires the API Gateway to be running.
+- Prediction results depend on backend service availability.
+- Batch processing requires a valid CSV format.

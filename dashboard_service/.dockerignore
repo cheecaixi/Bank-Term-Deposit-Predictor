@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables / secrets
+.env
+.env.*
+.streamlit/secrets.toml
+
+# IDE / editor files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local test data
+*.csv
+*.xlsx
+
+# Docker files not needed inside image
+Dockerfile
+.dockerignore

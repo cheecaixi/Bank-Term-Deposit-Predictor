@@ -21,7 +21,7 @@ import hashlib
 # ---------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------
-DEFAULT_GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8080")
+GATEWAY_URL = os.getenv("GATEWAY_URL","http://localhost:8080")
 
 FEATURE_FIELDS = [
     "age", "job", "marital", "education", "default",
@@ -48,9 +48,7 @@ st.set_page_config(page_title="Bank Marketing Dashboard", layout="wide", page_ic
 if "history" not in st.session_state:
     st.session_state.history = []  # list of dicts, for this session's single predictions
 if "gateway_url" not in st.session_state:
-    st.session_state.gateway_url = DEFAULT_GATEWAY_URL
-if "use_mock" not in st.session_state:
-    st.session_state.use_mock = True
+    st.session_state.gateway_url = GATEWAY_URL
 
 # ---------------------------------------------------------------
 # REAL API CALLS -- matches Member B's FastAPI gateway 
@@ -536,7 +534,7 @@ st.caption(f"🟢 System operational ")
 st.write(
     "AI-assisted customer prioritisation for term deposit campaigns."
 )
-tab1, tab2, tab3 = st.tabs(["👨‍💼 Customer Prediction", "📂 Batch Prediction", "📊 Campaign Analytics"])
+tab1, tab2, tab3, tab4 = st.tabs(["👨‍💼 Customer Prediction", "📂 Batch Prediction", "📊 Campaign Analytics", "🖥️ System Monitoring"])
 
 # ---------------------------------------------------------------
 # TAB 1: SINGLE CUSTOMER PREDICTION
@@ -799,8 +797,7 @@ with tab1:
                     default_default
                 ),
                 help=(
-                    "Whether the customer has credit "
-                    "in default."
+                    "Whether the customer fail to repay borrowed money."
                 )
             )
 
@@ -2788,3 +2785,358 @@ with tab3:
             "or Batch Customer Prediction tabs. Once predictions "
             "are logged by the Database Service, they will appear here."
         )
+
+# ============================================================
+# TAB 4 — SYSTEM MONITORING
+# ============================================================
+
+with tab4:
+
+    st.header("🖥️ System Monitoring")
+    st.caption("Monitor microservice health, system metrics and recent logs.")
+
+    # --------------------------------------------------------
+    # Helper function
+    # --------------------------------------------------------
+    def get_monitoring_data(endpoint):
+        try:
+            response = requests.get(
+                f"{GATEWAY_URL}{endpoint}",
+                timeout=5
+            )
+
+            if response.status_code == 200:
+                return response.json()
+
+            st.error(
+                f"Monitoring request failed "
+                f"(HTTP {response.status_code})"
+            )
+            return None
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"Unable to connect to API Gateway: {e}")
+            return None
+
+    # --------------------------------------------------------
+    # Refresh button
+    # --------------------------------------------------------
+    col_refresh, col_status = st.columns([1, 4])
+
+    with col_refresh:
+        refresh = st.button(
+            "🔄 Refresh",
+            key="monitoring_refresh"
+        )
+
+    with col_status:
+        st.info(
+            "Monitoring data is retrieved through the API Gateway."
+        )
+
+    # --------------------------------------------------------
+    # SERVICE STATUS
+    # --------------------------------------------------------
+    st.subheader("🟢 Service Status")
+
+    status_data = get_monitoring_data(
+        "/api/monitoring/status"
+    )
+
+    if status_data:
+
+        overall_status = status_data.get(
+            "overall_status",
+            "unknown"
+        )
+
+        services = status_data.get(
+            "services",
+            []
+        )
+
+        # Overall status
+        if overall_status == "healthy":
+            st.success("🟢 All monitored services are healthy.")
+        else:
+            st.warning(
+                "🟠 System status is degraded. "
+                "Check the service status below."
+            )
+
+        # Service status cards
+        if services:
+
+            cols = st.columns(len(services))
+
+            for col, service in zip(cols, services):
+
+                with col:
+
+                    service_name = service.get(
+                        "service",
+                        "Unknown"
+                    )
+
+                    service_status = service.get(
+                        "status",
+                        "unknown"
+                    )
+
+                    response_time = service.get(
+                        "response_time_ms",
+                        0
+                    )
+
+                    if service_status == "healthy":
+                        st.success(
+                            f"🟢 {service_name}"
+                        )
+                    else:
+                        st.error(
+                            f"🔴 {service_name}"
+                        )
+
+                    st.metric(
+                        "Response Time",
+                        f"{response_time} ms"
+                    )
+
+                    status_code = service.get(
+                        "status_code"
+                    )
+
+                    if status_code:
+                        st.caption(
+                            f"HTTP Status: {status_code}"
+                        )
+
+    else:
+        st.warning(
+            "Unable to retrieve service status."
+        )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # SYSTEM METRICS
+    # --------------------------------------------------------
+    st.subheader("📊 System Metrics")
+
+    metrics_data = get_monitoring_data(
+        "/api/monitoring/metrics"
+    )
+
+    if metrics_data:
+
+        total_logs = metrics_data.get(
+            "total_logs",
+            0
+        )
+
+        total_errors = metrics_data.get(
+            "total_errors",
+            0
+        )
+
+        total_warnings = metrics_data.get(
+            "total_warnings",
+            0
+        )
+
+        average_response = metrics_data.get(
+            "average_response_time_ms"
+        )
+
+        maximum_response = metrics_data.get(
+            "maximum_response_time_ms"
+        )
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        with col1:
+            st.metric(
+                "Total Logs",
+                total_logs
+            )
+
+        with col2:
+            st.metric(
+                "Errors",
+                total_errors
+            )
+
+        with col3:
+            st.metric(
+                "Warnings",
+                total_warnings
+            )
+
+        with col4:
+            if average_response is not None:
+                st.metric(
+                    "Avg Response",
+                    f"{average_response:.2f} ms"
+                )
+            else:
+                st.metric(
+                    "Avg Response",
+                    "N/A"
+                )
+
+        with col5:
+            if maximum_response is not None:
+                st.metric(
+                    "Max Response",
+                    f"{maximum_response:.2f} ms"
+                )
+            else:
+                st.metric(
+                    "Max Response",
+                    "N/A"
+                )
+
+        # ----------------------------------------------------
+        # Metrics by service
+        # ----------------------------------------------------
+        by_service = metrics_data.get(
+            "by_service",
+            []
+        )
+
+        if by_service:
+
+            st.subheader("📈 Metrics by Service")
+
+            service_df = pd.DataFrame(
+                by_service
+            )
+
+            st.dataframe(
+                service_df,
+                use_container_width=True,
+                hide_index=True
+            )
+
+    else:
+        st.warning(
+            "Unable to retrieve system metrics."
+        )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # SYSTEM LOGS
+    # --------------------------------------------------------
+    st.subheader("📋 Recent System Logs")
+
+    logs_data = get_monitoring_data(
+        "/api/logs?limit=100"
+    )
+
+    if logs_data:
+
+        if isinstance(logs_data, list):
+
+            logs_df = pd.DataFrame(
+                logs_data
+            )
+
+        else:
+
+            logs_df = pd.DataFrame(
+                logs_data
+            )
+
+        if not logs_df.empty:
+
+            # ----------------------------------------------
+            # Log filters
+            # ----------------------------------------------
+            filter_col1, filter_col2 = st.columns(2)
+
+            with filter_col1:
+
+                services = ["All"]
+
+                if "service" in logs_df.columns:
+                    services += sorted(
+                        logs_df["service"]
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
+
+                selected_service = st.selectbox(
+                    "Filter by Service",
+                    services,
+                    key="monitoring_service_filter"
+                )
+
+            with filter_col2:
+
+                levels = ["All"]
+
+                if "level" in logs_df.columns:
+                    levels += sorted(
+                        logs_df["level"]
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
+
+                selected_level = st.selectbox(
+                    "Filter by Level",
+                    levels,
+                    key="monitoring_level_filter"
+                )
+
+            # ----------------------------------------------
+            # Apply filters
+            # ----------------------------------------------
+            filtered_logs = logs_df.copy()
+
+            if (
+                selected_service != "All"
+                and "service" in filtered_logs.columns
+            ):
+                filtered_logs = filtered_logs[
+                    filtered_logs["service"]
+                    == selected_service
+                ]
+
+            if (
+                selected_level != "All"
+                and "level" in filtered_logs.columns
+            ):
+                filtered_logs = filtered_logs[
+                    filtered_logs["level"]
+                    == selected_level
+                ]
+
+            # ----------------------------------------------
+            # Display logs
+            # ----------------------------------------------
+            st.dataframe(
+                filtered_logs,
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.caption(
+                f"Showing {len(filtered_logs)} log(s)"
+            )
+
+        else:
+
+            st.info(
+                "No system logs available."
+            )
+
+    else:
+
+        st.warning(
+            "Unable to retrieve system logs."
+        )        
