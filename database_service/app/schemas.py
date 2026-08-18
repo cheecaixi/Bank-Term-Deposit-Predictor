@@ -120,15 +120,28 @@ class PredictionResponse(PredictionCreate):
 class BatchUploadCreate(BaseModel):
     file_name: str
     total_records: int
+    file_hash: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$"
+    )
 
 
 class BatchUploadResponse(BatchUploadCreate):
     batch_id: int
+    status: str
+    created_at: datetime
     uploaded_at: datetime
 
     model_config = ConfigDict(
         from_attributes=True
     )
+
+
+class BatchUploadCheckResponse(BaseModel):
+    exists: bool
+    batch_id: Optional[int] = None
+    status: Optional[str] = None
 
 
 # ============================================================

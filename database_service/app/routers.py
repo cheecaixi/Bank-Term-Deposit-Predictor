@@ -5,7 +5,7 @@ from fastapi import (
 )
 
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.database import get_db
 
@@ -27,6 +27,7 @@ from app.schemas import (
     PredictionResponse,
     BatchUploadCreate,
     BatchUploadResponse,
+    BatchUploadCheckResponse,
     HistoricalDataCreate,
     HistoricalDataResponse
 )
@@ -333,6 +334,25 @@ def save_prediction(
     # Once prediction is successfully stored
     customer.prediction_status = "COMPLETED"
 
+    if customer.batch_id is not None:
+        batch = (
+            db.query(BatchUpload)
+            .filter(BatchUpload.batch_id == customer.batch_id)
+            .first()
+        )
+        completed_count = (
+            db.query(Prediction)
+            .join(Customer, Customer.customer_id == Prediction.customer_id)
+            .filter(Customer.batch_id == customer.batch_id)
+            .count()
+        )
+        if batch is not None:
+            batch.status = (
+                "completed"
+                if completed_count >= batch.total_records
+                else "processing"
+            )
+
     db.commit()
     db.refresh(prediction)
 
@@ -384,12 +404,45 @@ def create_batch(
     db: Session = Depends(get_db)
 ):
 
+    existing_batch = (
+        db.query(BatchUpload)
+        .filter(BatchUpload.file_hash == data.file_hash)
+        .first()
+    )
+    if existing_batch is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "CSV file already exists",
+                "batch_id": existing_batch.batch_id
+            }
+        )
+
     batch = BatchUpload(
         **data.model_dump()
     )
 
-    db.add(batch)
-    db.commit()
+    try:
+        db.add(batch)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing_batch = (
+            db.query(BatchUpload)
+            .filter(BatchUpload.file_hash == data.file_hash)
+            .first()
+        )
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "CSV file already exists",
+                "batch_id": (
+                    existing_batch.batch_id
+                    if existing_batch is not None
+                    else None
+                )
+            }
+        )
     db.refresh(batch)
 
     return batch
@@ -404,6 +457,36 @@ def get_batches(
 ):
 
     return db.query(BatchUpload).all()
+
+
+@router.get(
+    "/batch-uploads/check/{file_hash}",
+    response_model=BatchUploadCheckResponse,
+    tags=["Batch Upload"]
+)
+def check_batch_upload(
+    file_hash: str,
+    db: Session = Depends(get_db)
+):
+    if len(file_hash) != 64 or any(
+        character not in "0123456789abcdef" for character in file_hash
+    ):
+        raise HTTPException(status_code=422, detail="Invalid SHA-256 file hash")
+
+    batch = (
+        db.query(BatchUpload)
+        .filter(BatchUpload.file_hash == file_hash)
+        .first()
+    )
+
+    if batch is None:
+        return {"exists": False}
+
+    return {
+        "exists": True,
+        "batch_id": batch.batch_id,
+        "status": batch.status
+    }
 
 
 @router.get(

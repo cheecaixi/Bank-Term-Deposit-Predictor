@@ -92,6 +92,27 @@ class BatchUpload(Base):
         nullable=False
     )
 
+    # SHA-256 of the uploaded CSV bytes. The database, not the filename,
+    # decides whether an upload is a duplicate.
+    file_hash = Column(
+        String(64),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+
+    status = Column(
+        String(20),
+        default="pending",
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
     uploaded_at = Column(
         DateTime,
         default=datetime.utcnow,
