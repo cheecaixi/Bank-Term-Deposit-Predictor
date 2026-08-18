@@ -1410,6 +1410,68 @@ with tab2:
                             "but no prediction results were found."
                         )
 
+                        st.info(
+                            "The batch is incomplete. "
+                            "The uploaded CSV can be reprocessed using "
+                            f"the existing Batch ID {existing_batch_id}."
+                        )
+
+                        if st.button(
+                            f"🔄 Reprocess Batch {existing_batch_id}",
+                            type="primary",
+                            use_container_width=True
+                        ):
+
+                            # reuse existing batch ID
+                            batch_id = existing_batch_id
+
+                            try:
+
+                                progress_bar = st.progress(
+                                    0.0,
+                                    text="Preparing customer records..."
+                                )
+
+                                def update_progress(frac):
+
+                                    progress_bar.progress(
+                                        frac,
+                                        text=(
+                                            "Generating predictions... "
+                                            f"{int(frac * 100)}%"
+                                        )
+                                    )
+
+                                results_df = predict_many(
+                                    df,
+                                    batch_id=batch_id,
+                                    progress_callback=update_progress
+                                )
+
+                                progress_bar.empty()
+
+                                if results_df is not None:
+
+                                    st.session_state.last_batch_results = (
+                                        results_df
+                                    )
+
+                                    st.session_state.current_batch_id = (
+                                        batch_id
+                                    )
+
+                                    st.success(
+                                        f"✅ Batch {batch_id} "
+                                        "reprocessed successfully."
+                                    )
+
+                            except Exception as error:
+
+                                st.error(
+                                    f"❌ Batch {batch_id} reprocessing failed: "
+                                    f"{error}"
+                                )
+
                 except requests.exceptions.ConnectionError:
 
                     st.error(
