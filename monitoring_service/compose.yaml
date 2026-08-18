@@ -1,0 +1,19 @@
+services:
+  monitoring-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      AI_SERVICE_URL: http://host.docker.internal:7000
+      GATEWAY_SERVICE_URL: http://host.docker.internal:8080
+      DATABASE_SERVICE_URL: http://host.docker.internal:8000
+      MONITORING_DATABASE_PATH: /data/monitoring.db
+      POLL_INTERVAL_SECONDS: "30"
+    ports:
+      - "7002:7002"
+    volumes:
+      - monitoring_data:/data
+    restart: unless-stopped
+
+volumes:
+  monitoring_data:
