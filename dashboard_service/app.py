@@ -285,8 +285,8 @@ def predict_many(
 
 def get_batch_results(batch_id: int):
     """
-    Retrieve customers and prediction results
-    belonging to a specific batch.
+    Retrieve customer prediction results for a specific batch
+    through the API Gateway.
     """
 
     url = (
@@ -1330,8 +1330,8 @@ with tab2:
     )
 
     st.write(
-        "Enter a Batch ID to retrieve customers and prediction "
-        "results from a previously processed batch."
+        "Enter a Batch ID to retrieve previously processed "
+        "customer prediction results."
     )
 
     batch_id_input = st.number_input(
@@ -1363,31 +1363,34 @@ with tab2:
                     f"Retrieving Batch {batch_id}..."
                 ):
 
-                    # IMPORTANT:
-                    # Retrieve joined customer + prediction results
                     batch_data = get_batch_results(
                         batch_id
                     )
 
                 # -------------------------------------------------
-                # CHECK WHETHER DATA EXISTS
+                # CHECK RESULTS
                 # -------------------------------------------------
 
-                if not batch_data:
+                results = batch_data.get(
+                    "results",
+                    []
+                )
+
+                if not results:
 
                     st.warning(
-                        f"⚠️ No customer records or prediction results "
-                        f"were found for Batch ID {batch_id}."
+                        f"⚠️ Batch {batch_id} exists, "
+                        f"but no prediction results were found."
                     )
 
                 else:
 
                     # -------------------------------------------------
-                    # CONVERT RESPONSE TO DATAFRAME
+                    # CONVERT RESULTS TO DATAFRAME
                     # -------------------------------------------------
 
                     retrieved_df = pd.DataFrame(
-                        batch_data
+                        results
                     )
 
                     # -------------------------------------------------
@@ -1404,27 +1407,22 @@ with tab2:
 
                     st.success(
                         f"✅ Batch {batch_id} loaded successfully — "
-                        f"{len(retrieved_df):,} records found."
+                        f"{len(retrieved_df):,} prediction results found."
                     )
+
+                    st.rerun()
 
             except requests.exceptions.HTTPError as error:
 
                 st.error(
-                    f"❌ Unable to retrieve Batch {batch_id}: "
-                    f"{error}"
+                    f"❌ Unable to retrieve Batch "
+                    f"{batch_id}: {error}"
                 )
-
-                if error.response is not None:
-
-                    st.code(
-                        error.response.text
-                    )
 
             except requests.exceptions.RequestException as error:
 
                 st.error(
-                    "❌ Unable to connect to the API Gateway. "
-                    "Please check that the Gateway is running."
+                    "❌ Unable to connect to the API Gateway."
                 )
 
             except Exception as error:
