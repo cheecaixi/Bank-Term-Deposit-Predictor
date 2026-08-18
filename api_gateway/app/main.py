@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
+from fastapi import Request
 
 from app.config import settings
 
@@ -30,6 +31,42 @@ TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 
 print("DATABASE_URL =", DATABASE_URL)
 
+# ----------------------------------------------------
+# MIDDLEWARE FOR CENTRALIZED MONITORING LOGS
+# ----------------------------------------------------
+@app.middleware("http")
+async def log_requests_to_monitoring(request: Request, call_next):
+    start_time = time.time()
+    
+    # Process the request through API Gateway[cite: 8]
+    response = await call_next(request)
+    
+    process_time_seconds = time.time() - start_time
+    
+    # Skip noise from basic health checks
+    if request.url.path not in ["/health", "/"]:
+        log_payload = {
+            "endpoint": request.url.path,
+            "method": request.method,
+            "status_code": response.status_code,
+            "execution_time_seconds": round(process_time_seconds, 4)
+        }
+        
+        # Asynchronously send log payload to Member D Monitoring[cite: 7, 8]
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{MONITORING_URL}/logs",
+                    json=log_payload,
+                    timeout=1.0
+                )
+        except Exception:
+            # Prevents monitoring failures from breaking core gateway responses
+            pass
+
+    return response
+
+    
 # ----------------------------------------------------
 # PYDANTIC SCHEMAS FOR DATA VALIDATION
 # ----------------------------------------------------
