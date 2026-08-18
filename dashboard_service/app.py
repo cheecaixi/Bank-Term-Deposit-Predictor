@@ -799,8 +799,7 @@ with tab1:
                     default_default
                 ),
                 help=(
-                    "Whether the customer has credit "
-                    "in default."
+                    "Whether the customer fail to repay borrowed money."
                 )
             )
 
