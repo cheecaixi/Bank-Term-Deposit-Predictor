@@ -16,6 +16,7 @@ import time
 import pandas as pd
 import requests
 import streamlit as st
+import hashlib
 
 # ---------------------------------------------------------------
 # CONFIG
@@ -186,13 +187,35 @@ def predict_one(record: dict):
 # ---------------------------------------------------------------
 # BATCH CUSTOMER PREDICTION
 # ---------------------------------------------------------------
+def calculate_file_hash(uploaded_file) -> str:
+    """
+    Calculate SHA-256 hash of the uploaded CSV file.
 
-def create_batch_upload(file_name: str,total_records: int,batch_id: int) -> dict:
+    The hash is used to identify whether the exact same
+    CSV file has already been uploaded.
+    """
+
+    file_bytes = uploaded_file.getvalue()
+
+    return hashlib.sha256(
+        file_bytes
+    ).hexdigest()
+
+
+def create_batch_upload(
+    file_name: str,
+    total_records: int,
+    file_hash: str
+) -> dict:
     """
     Create a new batch record through the API Gateway.
 
-    Member C determines the next incremental batch ID
-    after checking the existing batches in the database.
+    Member D generates the Batch ID automatically.
+
+    Member C sends:
+        - file name
+        - total number of records
+        - SHA-256 file hash
     """
 
     url = (
@@ -203,9 +226,9 @@ def create_batch_upload(file_name: str,total_records: int,batch_id: int) -> dict
     response = requests.post(
         url,
         json={
-            "batch_id": batch_id,
             "file_name": file_name,
-            "total_records": total_records
+            "total_records": total_records,
+            "file_hash": file_hash
         },
         timeout=10
     )
@@ -214,26 +237,21 @@ def create_batch_upload(file_name: str,total_records: int,batch_id: int) -> dict
 
     return response.json()
 
-def check_batch_file(file_name: str):
+
+def check_existing_batch(
+    file_hash: str
+):
     """
-    Check whether the uploaded CSV file already exists
-    in the database.
+    Check whether the uploaded CSV already exists.
 
-    Returns:
-        {
-            "exists": True/False,
-            "file_name": "...",
-            "batch": {...}
-        }
-
-    If the file has not been uploaded before,
-    Member B returns exists = False.
+    The database identifies duplicate files using
+    the SHA-256 file hash.
     """
 
     url = (
         f"{st.session_state.gateway_url}"
         f"/api/batch-uploads/check/"
-        f"{file_name}"
+        f"{file_hash}"
     )
 
     response = requests.get(
@@ -243,7 +261,13 @@ def check_batch_file(file_name: str):
 
     response.raise_for_status()
 
-    return response.json()
+    result = response.json()
+
+    if result.get("exists"):
+
+        return result
+
+    return None
 
 def predict_many(
     df: pd.DataFrame,
@@ -1283,8 +1307,12 @@ with tab2:
 
             try:
 
+                file_hash = calculate_file_hash(
+                    uploaded_file
+                )
+
                 existing_batch = check_existing_batch(
-                    uploaded_file.name
+                    file_hash
                 )
 
             except requests.exceptions.ConnectionError:
@@ -1571,24 +1599,9 @@ with tab2:
 
                         try:
 
-                            # =====================================
-                            # STEP 1 — GET NEXT BATCH ID
-                            # =====================================
-
-                            with st.spinner(
-                                "Checking the latest Batch ID..."
-                            ):
-
-                                batch_id = get_next_batch_id()
-
-                            st.info(
-                                f"📦 New Batch ID assigned: "
-                                f"**{batch_id}**"
-                            )
-
-                            # =====================================
-                            # STEP 2 — CREATE BATCH
-                            # =====================================
+                            # =========================================
+                            # STEP 1 — CREATE BATCH
+                            # =========================================
 
                             with st.spinner(
                                 "Registering new batch..."
@@ -1597,8 +1610,18 @@ with tab2:
                                 batch = create_batch_upload(
                                     file_name=uploaded_file.name,
                                     total_records=len(df),
-                                    batch_id=batch_id
+                                    file_hash=file_hash
                                 )
+
+                            # Database-generated Batch ID
+                            batch_id = int(
+                                batch["batch_id"]
+                            )
+
+                            st.info(
+                                f"📦 New Batch ID assigned: "
+                                f"**{batch_id}**"
+                            )
 
                             st.success(
                                 f"✅ Batch {batch_id} created successfully."
@@ -1608,9 +1631,9 @@ with tab2:
                                 batch_id
                             )
 
-                            # =====================================
-                            # STEP 3 — GENERATE PREDICTIONS
-                            # =====================================
+                            # =========================================
+                            # STEP 2 — GENERATE PREDICTIONS
+                            # =========================================
 
                             progress_bar = st.progress(
                                 0.0,
@@ -1635,9 +1658,9 @@ with tab2:
 
                             progress_bar.empty()
 
-                            # =====================================
-                            # STEP 4 — DISPLAY RESULTS
-                            # =====================================
+                            # =========================================
+                            # STEP 3 — DISPLAY RESULTS
+                            # =========================================
 
                             if results_df is not None:
 
@@ -1665,8 +1688,7 @@ with tab2:
                         except requests.exceptions.ConnectionError:
 
                             st.error(
-                                "❌ Unable to connect to the "
-                                "API Gateway."
+                                "❌ Unable to connect to the API Gateway."
                             )
 
                         except requests.exceptions.Timeout:

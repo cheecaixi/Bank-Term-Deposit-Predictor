@@ -224,10 +224,42 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 # ----------------------------------------------------
 # 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)
 # ----------------------------------------------------
-@app.get("/api/batch-uploads/check", tags=["Batch Uploads"])
-async def check_batch_upload(file_hash: str = Query(..., description="SHA-256 hash of the CSV file")):
+@app.get("/api/batch-uploads", tags=["Batch Uploads"])
+async def get_all_batch_uploads():
     """
-    Check if a file with the given SHA-256 hash has already been uploaded (forwards to Member D).
+    Retrieve all batch upload records from Member D.
+    Used by Member C to check whether a CSV file
+    has previously been uploaded.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{DATABASE_URL}/batch-uploads",
+                timeout=TIMEOUT_SECONDS
+            )
+
+            response.raise_for_status()
+            return response.json()
+
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Member D (Database Service) error: {exc.response.text}"
+            )
+
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Member D (Database Service) unreachable: {exc}"
+            )
+
+
+@app.get("/api/batch-uploads/check", tags=["Batch Uploads"])
+async def check_batch_upload(
+    file_hash: str = Query(..., description="SHA-256 hash of the CSV file")
+):
+    """
+    Check if a file with the given SHA-256 hash has already been uploaded.
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -235,15 +267,19 @@ async def check_batch_upload(file_hash: str = Query(..., description="SHA-256 ha
                 f"{DATABASE_URL}/batch-uploads/check/{file_hash}",
                 timeout=TIMEOUT_SECONDS
             )
+
             if response.status_code == 404:
                 return {"exists": False}
+
             response.raise_for_status()
             return response.json()
+
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
                 detail=f"Member D (Database Service) error: {exc.response.text}"
             )
+
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -263,13 +299,16 @@ async def create_batch_upload(batch: BatchUploadModel):
                 json=batch.model_dump(),
                 timeout=TIMEOUT_SECONDS
             )
+
             response.raise_for_status()
             return response.json()
+
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
                 detail=f"Member D (Database Service) error: {exc.response.text}"
             )
+
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
