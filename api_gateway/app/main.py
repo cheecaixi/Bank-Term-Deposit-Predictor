@@ -1,20 +1,20 @@
+import time
 from typing import Optional, Literal
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
-from fastapi import Request
 
 from app.config import settings
 
-# Initialize FastAPI Application
+# Initialize FastAPI Application[cite: 8]
 app = FastAPI(
     title="Bank Marketing API Gateway",
     description="Central API Gateway orchestrating Member A (AI Inference), Member C (Dashboard), and Member D (Database/Monitoring).",
     version="1.0.0"
 )
 
-# Enable CORS for Member C's Dashboard / Frontend
+# Enable CORS for Member C's Dashboard / Frontend[cite: 8]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,27 +23,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load Microservice URLs from shared config
+# Load Microservice URLs from shared config[cite: 7, 8]
 INFERENCE_URL = settings.INFERENCE_SERVICE_URL
 DATABASE_URL = settings.DATABASE_SERVICE_URL
 MONITORING_URL = settings.MONITORING_SERVICE_URL
 TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 
-print("DATABASE_URL =", DATABASE_URL)
 
 # ----------------------------------------------------
-# MIDDLEWARE FOR CENTRALIZED MONITORING LOGS
+# CENTRALIZED MONITORING MIDDLEWARE[cite: 8]
 # ----------------------------------------------------
 @app.middleware("http")
 async def log_requests_to_monitoring(request: Request, call_next):
     start_time = time.time()
     
-    # Process the request through API Gateway[cite: 8]
     response = await call_next(request)
     
     process_time_seconds = time.time() - start_time
     
-    # Skip noise from basic health checks
+    # Filter out noisy root and health check logs
     if request.url.path not in ["/health", "/"]:
         log_payload = {
             "endpoint": request.url.path,
@@ -52,7 +50,6 @@ async def log_requests_to_monitoring(request: Request, call_next):
             "execution_time_seconds": round(process_time_seconds, 4)
         }
         
-        # Asynchronously send log payload to Member D Monitoring[cite: 7, 8]
         try:
             async with httpx.AsyncClient() as client:
                 await client.post(
@@ -61,17 +58,17 @@ async def log_requests_to_monitoring(request: Request, call_next):
                     timeout=1.0
                 )
         except Exception:
-            # Prevents monitoring failures from breaking core gateway responses
+            # Prevent monitoring connection drops from failing core gateway execution[cite: 8]
             pass
 
     return response
 
-    
+
 # ----------------------------------------------------
-# PYDANTIC SCHEMAS FOR DATA VALIDATION
+# PYDANTIC SCHEMAS FOR DATA VALIDATION[cite: 8]
 # ----------------------------------------------------
 class CustomerPredictModel(BaseModel):
-    phone_number: str = Field(..., example="91234567")
+    phone_number: str = Field(..., pattern=r"^\d{8}$", example="91234567")
     age: int = Field(..., example=35)
     job: Literal[
         "admin.", "blue-collar", "entrepreneur", "housemaid",
@@ -99,10 +96,9 @@ class CustomerPredictModel(BaseModel):
 class BatchUploadModel(BaseModel):
     file_name: str = Field(..., example="bank_customers_august.csv")
     total_records: int = Field(..., gt=0, example=50)
-    file_hash: str = Field(..., example="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 
 class CustomerUpdateModel(BaseModel):
-    phone_number: Optional[str] = Field(None, example="91234567")
+    phone_number: Optional[str] = Field(None, pattern=r"^\d{8}$", example="91234567")
     age: Optional[int] = Field(None, example=36)
     job: Optional[Literal[
         "admin.", "blue-collar", "entrepreneur", "housemaid",
@@ -119,7 +115,7 @@ class CustomerUpdateModel(BaseModel):
 
 
 # ----------------------------------------------------
-# 1. HEALTH & ROOT ENDPOINTS
+# 1. HEALTH & ROOT ENDPOINTS[cite: 8]
 # ----------------------------------------------------
 @app.get("/", tags=["Health"])
 def read_root():
@@ -134,21 +130,21 @@ def health_check():
 
 
 # ----------------------------------------------------
-# 2. PREDICT ENDPOINT (FORWARD TO MEMBER A & PERSIST TO MEMBER D)
+# 2. PREDICT ENDPOINT (FORWARD TO MEMBER A & PERSIST TO MEMBER D)[cite: 8]
 # ----------------------------------------------------
 @app.post("/api/predict", tags=["Predictions"])
 async def predict_subscription(customer_data: CustomerPredictModel):
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         
-        # Exclude non-inference fields (phone_number and batch_id)
+        # Exclude non-inference fields (phone_number and batch_id)[cite: 8]
         inference_payload = {
             field: value
             for field, value in payload.items()
             if field not in ("phone_number", "batch_id")
         }
 
-        # Step A: Request prediction from Member A (AI Inference)
+        # Step A: Request prediction from Member A (AI Inference)[cite: 8]
         try:
             inference_response = await client.post(
                 f"{INFERENCE_URL}/predict",
@@ -168,7 +164,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 detail=f"Member A (AI Inference Service) unreachable: {exc}"
             )
 
-        # Step B: Persist customer, campaign, and prediction data to Member D
+        # Step B: Persist customer, campaign, and prediction data to Member D[cite: 8]
         try:
             customer_payload = {
                 field: payload[field]
@@ -186,7 +182,6 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             )
 
             if customer_response.status_code == 409:
-                # Retrieve existing customer record
                 customers_response = await client.get(
                     f"{DATABASE_URL}/customers",
                     timeout=TIMEOUT_SECONDS
@@ -206,14 +201,12 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                     )
                 customer_id = customer["customer_id"]
 
-                # Automatically update existing customer record with the new payload
-                update_response = await client.put(
+                # Forward updated demographic data and batch_id to Member D[cite: 8, 29]
+                await client.put(
                     f"{DATABASE_URL}/customers/{customer_id}",
                     json=customer_payload,
                     timeout=TIMEOUT_SECONDS
                 )
-                update_response.raise_for_status()
-
             else:
                 customer_response.raise_for_status()
                 customer_id = customer_response.json()["customer_id"]
@@ -260,92 +253,12 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 
 
 # ----------------------------------------------------
-# 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)
+# 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)[cite: 29]
 # ----------------------------------------------------
-@app.get("/api/batch-uploads", tags=["Batch Uploads"])
-async def get_all_batch_uploads():
-    """
-    Retrieve all batch upload records from Member D.
-    Used by Member C to check whether a CSV file
-    has previously been uploaded.
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{DATABASE_URL}/batch-uploads",
-                timeout=TIMEOUT_SECONDS
-            )
-
-            response.raise_for_status()
-            return response.json()
-
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(
-                status_code=exc.response.status_code,
-                detail=f"Member D (Database Service) error: {exc.response.text}"
-            )
-
-        except httpx.RequestError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Member D (Database Service) unreachable: {exc}"
-            )
-
-
-@app.get(
-    "/api/batch-uploads/check/{file_hash}",
-    tags=["Batch Uploads"]
-)
-async def check_batch_upload(file_hash: str):
-    """
-    Check if a CSV file with the given SHA-256 hash
-    has already been uploaded.
-
-    Forwards the request to Member D.
-    """
-
-    async with httpx.AsyncClient() as client:
-
-        try:
-
-            response = await client.get(
-                f"{DATABASE_URL}/batch-uploads/check/{file_hash}",
-                timeout=TIMEOUT_SECONDS
-            )
-
-            if response.status_code == 404:
-                return {
-                    "exists": False
-                }
-
-            response.raise_for_status()
-
-            return response.json()
-
-        except httpx.HTTPStatusError as exc:
-
-            raise HTTPException(
-                status_code=exc.response.status_code,
-                detail=(
-                    "Member D (Database Service) error: "
-                    f"{exc.response.text}"
-                )
-            )
-
-        except httpx.RequestError as exc:
-
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=(
-                    "Member D (Database Service) unreachable: "
-                    f"{exc}"
-                )
-            )
-
 @app.post("/api/batch-uploads", tags=["Batch Uploads"])
 async def create_batch_upload(batch: BatchUploadModel):
     """
-    Register a new batch upload record in Member D.
+    Register a new batch upload record in Member D.[cite: 29]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -354,16 +267,13 @@ async def create_batch_upload(batch: BatchUploadModel):
                 json=batch.model_dump(),
                 timeout=TIMEOUT_SECONDS
             )
-
             response.raise_for_status()
             return response.json()
-
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
                 detail=f"Member D (Database Service) error: {exc.response.text}"
             )
-
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -374,7 +284,7 @@ async def create_batch_upload(batch: BatchUploadModel):
 @app.get("/api/batch-uploads/{batch_id}/customers", tags=["Batch Uploads"])
 async def get_customers_by_batch(batch_id: int):
     """
-    Fetch all customer records associated with a specific batch ID from Member D.
+    Fetch all customer records associated with a specific batch ID from Member D.[cite: 29]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -399,7 +309,7 @@ async def get_customers_by_batch(batch_id: int):
 @app.get("/api/batch-uploads/{batch_id}/results", tags=["Batch Uploads"])
 async def get_results_by_batch(batch_id: int):
     """
-    Fetch joined customer and prediction results for a specific batch ID from Member D.
+    Fetch joined customer and prediction results for a specific batch ID from Member D.[cite: 29]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -422,7 +332,7 @@ async def get_results_by_batch(batch_id: int):
 
 
 # ----------------------------------------------------
-# 4. GET HISTORICAL RECORDS (FORWARD TO MEMBER D)
+# 4. GET HISTORICAL RECORDS (FORWARD TO MEMBER D)[cite: 8]
 # ----------------------------------------------------
 @app.get("/api/results", tags=["Analytics"])
 async def fetch_historical_results():
@@ -447,12 +357,12 @@ async def fetch_historical_results():
 
 
 # ----------------------------------------------------
-# 5. SEARCH CUSTOMER BY PHONE NUMBER
+# 5. SEARCH CUSTOMER BY PHONE NUMBER[cite: 8]
 # ----------------------------------------------------
 @app.get("/api/customers/phone/{phone_number}", tags=["Customers"])
 async def get_customer_by_phone(phone_number: str):
     """
-    Search for an existing customer by phone number.
+    Search for an existing customer by phone number.[cite: 8]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -498,7 +408,7 @@ async def get_customer_by_phone(phone_number: str):
 
 
 # ----------------------------------------------------
-# 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)
+# 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)[cite: 8]
 # ----------------------------------------------------
 @app.put("/api/customers/{customer_id}", tags=["Customers"])
 async def update_customer(
@@ -507,7 +417,7 @@ async def update_customer(
 ):
     """
     Receives updated customer records from Member C (Dashboard)
-    and forwards the PUT request to Member D (Database Service).
+    and forwards the PUT request to Member D (Database Service).[cite: 8]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -538,13 +448,13 @@ async def update_customer(
 
 
 # ----------------------------------------------------
-# 7. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)
+# 7. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)[cite: 8]
 # ----------------------------------------------------
 @app.delete("/api/customers/{customer_id}", tags=["Customers"])
 async def delete_customer(customer_id: int):
     """
     Receives a customer deletion request from Member C (Dashboard)
-    and forwards the DELETE request to Member D (Database Service).
+    and forwards the DELETE request to Member D (Database Service).[cite: 8]
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -570,9 +480,9 @@ async def delete_customer(customer_id: int):
 
 
 # ----------------------------------------------------
-# 8. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)
+# 8. MONITORING ENDPOINTS (FORWARD TO MEMBER D MONITORING)[cite: 8]
 # ----------------------------------------------------
-@app.get("/api/logs", tags=["Monitoring"])
+@app.get("/api/logs", tags=["Monitoring"], summary="Get detailed log history")
 async def fetch_system_logs():
     async with httpx.AsyncClient() as client:
         try:
@@ -582,8 +492,69 @@ async def fetch_system_logs():
             )
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Monitoring Service error: {exc.response.text}"
+            )
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Member D (Monitoring Service) unreachable: {exc}"
+                detail=f"Monitoring Service unreachable: {exc}"
+            )
+
+
+@app.get(
+    "/api/monitoring/status",
+    tags=["Monitoring"],
+    summary="Get current health of all microservices"
+)
+async def fetch_monitoring_status():
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{MONITORING_URL}/status",
+                timeout=TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Monitoring Service error: {exc.response.text}"
+            )
+
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Monitoring Service unreachable: {exc}"
+            )
+
+
+@app.get(
+    "/api/monitoring/metrics",
+    tags=["Monitoring"],
+    summary="Get aggregated monitoring metrics"
+)
+async def fetch_monitoring_metrics():
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{MONITORING_URL}/metrics",
+                timeout=TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Monitoring Service error: {exc.response.text}"
+            )
+
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Monitoring Service unreachable: {exc}"
             )
