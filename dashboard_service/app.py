@@ -49,8 +49,6 @@ if "history" not in st.session_state:
     st.session_state.history = []  # list of dicts, for this session's single predictions
 if "gateway_url" not in st.session_state:
     st.session_state.gateway_url = DEFAULT_GATEWAY_URL
-if "use_mock" not in st.session_state:
-    st.session_state.use_mock = True
 
 # ---------------------------------------------------------------
 # REAL API CALLS -- matches Member B's FastAPI gateway 
