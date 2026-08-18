@@ -1,19 +1,19 @@
 from typing import Optional, Literal
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
 
 from app.config import settings
 
-# Initialize FastAPI Application[cite: 8]
+# Initialize FastAPI Application
 app = FastAPI(
     title="Bank Marketing API Gateway",
     description="Central API Gateway orchestrating Member A (AI Inference), Member C (Dashboard), and Member D (Database/Monitoring).",
     version="1.0.0"
 )
 
-# Enable CORS for Member C's Dashboard / Frontend[cite: 8]
+# Enable CORS for Member C's Dashboard / Frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load Microservice URLs from shared config[cite: 7, 8]
+# Load Microservice URLs from shared config
 INFERENCE_URL = settings.INFERENCE_SERVICE_URL
 DATABASE_URL = settings.DATABASE_SERVICE_URL
 MONITORING_URL = settings.MONITORING_SERVICE_URL
@@ -30,7 +30,7 @@ TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 
 
 # ----------------------------------------------------
-# PYDANTIC SCHEMAS FOR DATA VALIDATION[cite: 8]
+# PYDANTIC SCHEMAS FOR DATA VALIDATION
 # ----------------------------------------------------
 class CustomerPredictModel(BaseModel):
     phone_number: str = Field(..., example="91234567")
@@ -61,6 +61,7 @@ class CustomerPredictModel(BaseModel):
 class BatchUploadModel(BaseModel):
     file_name: str = Field(..., example="bank_customers_august.csv")
     total_records: int = Field(..., gt=0, example=50)
+    file_hash: str = Field(..., example="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 
 class CustomerUpdateModel(BaseModel):
     phone_number: Optional[str] = Field(None, example="91234567")
@@ -80,7 +81,7 @@ class CustomerUpdateModel(BaseModel):
 
 
 # ----------------------------------------------------
-# 1. HEALTH & ROOT ENDPOINTS[cite: 8]
+# 1. HEALTH & ROOT ENDPOINTS
 # ----------------------------------------------------
 @app.get("/", tags=["Health"])
 def read_root():
@@ -95,21 +96,21 @@ def health_check():
 
 
 # ----------------------------------------------------
-# 2. PREDICT ENDPOINT (FORWARD TO MEMBER A & PERSIST TO MEMBER D)[cite: 8]
+# 2. PREDICT ENDPOINT (FORWARD TO MEMBER A & PERSIST TO MEMBER D)
 # ----------------------------------------------------
 @app.post("/api/predict", tags=["Predictions"])
 async def predict_subscription(customer_data: CustomerPredictModel):
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         
-        # Exclude non-inference fields (phone_number and batch_id)[cite: 8]
+        # Exclude non-inference fields (phone_number and batch_id)
         inference_payload = {
             field: value
             for field, value in payload.items()
             if field not in ("phone_number", "batch_id")
         }
 
-        # Step A: Request prediction from Member A (AI Inference)[cite: 8]
+        # Step A: Request prediction from Member A (AI Inference)
         try:
             inference_response = await client.post(
                 f"{INFERENCE_URL}/predict",
@@ -129,7 +130,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 detail=f"Member A (AI Inference Service) unreachable: {exc}"
             )
 
-        # Step B: Persist customer, campaign, and prediction data to Member D[cite: 8]
+        # Step B: Persist customer, campaign, and prediction data to Member D
         try:
             customer_payload = {
                 field: payload[field]
@@ -147,7 +148,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             )
 
             if customer_response.status_code == 409:
-                # Step 1: Retrieve existing customer records[cite: 8, 29]
+                # Retrieve existing customer record
                 customers_response = await client.get(
                     f"{DATABASE_URL}/customers",
                     timeout=TIMEOUT_SECONDS
@@ -167,7 +168,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                     )
                 customer_id = customer["customer_id"]
 
-                # Step 2: Automatically update existing customer record with the new inputs[cite: 8, 29]
+                # Automatically update existing customer record with the new payload
                 update_response = await client.put(
                     f"{DATABASE_URL}/customers/{customer_id}",
                     json=customer_payload,
@@ -219,13 +220,41 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 
         return prediction_result
 
+
 # ----------------------------------------------------
-# 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)[cite: 29]
+# 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)
 # ----------------------------------------------------
+@app.get("/api/batch-uploads/check", tags=["Batch Uploads"])
+async def check_batch_upload(file_hash: str = Query(..., description="SHA-256 hash of the CSV file")):
+    """
+    Check if a file with the given SHA-256 hash has already been uploaded (forwards to Member D).
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{DATABASE_URL}/batch-uploads/check/{file_hash}",
+                timeout=TIMEOUT_SECONDS
+            )
+            if response.status_code == 404:
+                return {"exists": False}
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Member D (Database Service) error: {exc.response.text}"
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Member D (Database Service) unreachable: {exc}"
+            )
+
+
 @app.post("/api/batch-uploads", tags=["Batch Uploads"])
 async def create_batch_upload(batch: BatchUploadModel):
     """
-    Register a new batch upload record in Member D.[cite: 29]
+    Register a new batch upload record in Member D.
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -251,7 +280,7 @@ async def create_batch_upload(batch: BatchUploadModel):
 @app.get("/api/batch-uploads/{batch_id}/customers", tags=["Batch Uploads"])
 async def get_customers_by_batch(batch_id: int):
     """
-    Fetch all customer records associated with a specific batch ID from Member D.[cite: 29]
+    Fetch all customer records associated with a specific batch ID from Member D.
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -276,7 +305,7 @@ async def get_customers_by_batch(batch_id: int):
 @app.get("/api/batch-uploads/{batch_id}/results", tags=["Batch Uploads"])
 async def get_results_by_batch(batch_id: int):
     """
-    Fetch joined customer and prediction results for a specific batch ID from Member D.[cite: 29]
+    Fetch joined customer and prediction results for a specific batch ID from Member D.
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -299,7 +328,7 @@ async def get_results_by_batch(batch_id: int):
 
 
 # ----------------------------------------------------
-# 4. GET HISTORICAL RECORDS (FORWARD TO MEMBER D)[cite: 8]
+# 4. GET HISTORICAL RECORDS (FORWARD TO MEMBER D)
 # ----------------------------------------------------
 @app.get("/api/results", tags=["Analytics"])
 async def fetch_historical_results():
@@ -324,12 +353,12 @@ async def fetch_historical_results():
 
 
 # ----------------------------------------------------
-# 5. SEARCH CUSTOMER BY PHONE NUMBER[cite: 8]
+# 5. SEARCH CUSTOMER BY PHONE NUMBER
 # ----------------------------------------------------
 @app.get("/api/customers/phone/{phone_number}", tags=["Customers"])
 async def get_customer_by_phone(phone_number: str):
     """
-    Search for an existing customer by phone number.[cite: 8]
+    Search for an existing customer by phone number.
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -375,7 +404,7 @@ async def get_customer_by_phone(phone_number: str):
 
 
 # ----------------------------------------------------
-# 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)[cite: 8]
+# 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)
 # ----------------------------------------------------
 @app.put("/api/customers/{customer_id}", tags=["Customers"])
 async def update_customer(
@@ -384,7 +413,7 @@ async def update_customer(
 ):
     """
     Receives updated customer records from Member C (Dashboard)
-    and forwards the PUT request to Member D (Database Service).[cite: 8]
+    and forwards the PUT request to Member D (Database Service).
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -415,13 +444,13 @@ async def update_customer(
 
 
 # ----------------------------------------------------
-# 7. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)[cite: 8]
+# 7. DELETE CUSTOMER RECORD (DELETE -> MEMBER D)
 # ----------------------------------------------------
 @app.delete("/api/customers/{customer_id}", tags=["Customers"])
 async def delete_customer(customer_id: int):
     """
     Receives a customer deletion request from Member C (Dashboard)
-    and forwards the DELETE request to Member D (Database Service).[cite: 8]
+    and forwards the DELETE request to Member D (Database Service).
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -447,7 +476,7 @@ async def delete_customer(customer_id: int):
 
 
 # ----------------------------------------------------
-# 8. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)[cite: 8]
+# 8. GET SYSTEM LOGS (FORWARD TO MEMBER D MONITORING)
 # ----------------------------------------------------
 @app.get("/api/logs", tags=["Monitoring"])
 async def fetch_system_logs():
