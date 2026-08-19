@@ -39,6 +39,7 @@ The project follows a microservices architecture consisting of independent servi
        │ AI Inference│  │  Database   │  │  Monitoring  │
        │   Service   │  │   Service   │  │   Service    │
        └─────────────┘  └─────────────┘  └──────────────┘
+```
 
 ## Microservice
 Dashboard Service (Member C)
@@ -58,7 +59,9 @@ dashboard_service/
 
 ## Requirements
 Install dependencies:
+```text
 pip install -r requirements.txt
+```
 
 Main dependencies:
 - Streamlit
@@ -68,27 +71,38 @@ Main dependencies:
 hashlib is included in Python's standard library and does not need to be added to requirements.txt.
 
 ## Run Locally
+```text
 streamlit run app.py
+```
 
 Open:
+```text
 http://localhost:8501
+```
 
 ## Run with Docker
 Build:
+```text
 docker build -t bank-dashboard .
+```
 
 Run:
+```text
 docker run -p 8501:8501 -e GATEWAY_URL=http://host.docker.internal:8080 bank-dashboard
+```
 
 ## Kubernetes
 Deploy using the Dashboard Deployment and Service YAML files:
-
+```text
 kubectl apply -f dashboard-deployment.yaml
 kubectl apply -f dashboard-service.yaml
+```
 
 Check:
+```text
 kubectl get pods
 kubectl get services
+```
 
 ## Dataset
 The system uses the Bank Marketing Dataset to predict whether customers will subscribe to a term deposit.
