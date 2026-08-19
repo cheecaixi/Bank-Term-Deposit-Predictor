@@ -53,9 +53,12 @@ dashboard_service/
 ├── app.py
 ├── requirements.txt
 ├── Dockerfile
+├── README.md
 ├── .dockerignore
 ├── .gitignore
-└── README.md
+└── k8s/
+    ├── dashboard_deployment.yaml
+    └── dashboard_service.yaml
 
 ## Requirements
 Install dependencies:
