@@ -49,7 +49,7 @@ Dashboard Service (Member C)
 - Main file: app.py
 
 ## Project Files
-
+```text
 dashboard_service/
 ├── app.py
 ├── requirements.txt
@@ -62,12 +62,13 @@ dashboard_service/
     ├── dashboard_service.yaml
     ├── configmap.yaml
     └── dashboard_hpa.yaml
+```
 
 ## Requirements
-
 Install dependencies:
-
+```text
 pip install -r requirements.txt
+```
 
 Main dependencies:
 - Streamlit
@@ -77,49 +78,49 @@ Main dependencies:
 hashlib is included in Python's standard library and does not need to be added to requirements.txt.
 
 ## Run Locally
-
+```text
 streamlit run app.py
-
+```
 Open:
-
+```text
 http://localhost:8501
+```
 
 ## Run with Docker
-
 Build:
-
+```text
 docker build -t bank-dashboard .
-
+```
 Run:
-
+```text
 docker run -p 8501:8501 -e GATEWAY_URL=http://host.docker.internal:8080 bank-dashboard
+```
 
 The Dashboard Docker image is also pushed to Docker Hub:
-
+```text
 cheecaixi/dashboard:latest
-
+```
 ## Kubernetes
-
 Deploy all Dashboard Kubernetes resources:
-
+```text
 kubectl apply -f k8s/
-
+```
 Check the deployment:
-
+```text
 kubectl get deployments
-
+```
 Check the pods:
-
+```text
 kubectl get pods
-
+```
 Check the service:
-
+```text
 kubectl get services
-
+```
 Check autoscaling:
-
+```
 kubectl get hpa
-
+```
 ## Kubernetes Configuration
 
 The ConfigMap stores the API Gateway URL used by the Dashboard.
