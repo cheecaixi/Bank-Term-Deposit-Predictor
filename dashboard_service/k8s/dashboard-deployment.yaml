@@ -1,41 +1,101 @@
+# Kubernetes Deployment
+# Manages the Dashboard application pods and keeps the desired number running.
 apiVersion: apps/v1
 kind: Deployment
 
 metadata:
-  name: dashboard-service
+  # Name of the Deployment
+  name: dashboard
 
 spec:
-  replicas: 2
+  # Number of Dashboard pod replicas to run.
+  # 3 pods provide better availability and allow traffic to be distributed.
+  replicas: 3
 
+  # Defines which pods belong to this Deployment.
   selector:
     matchLabels:
-      app: dashboard-service
+      app: dashboard
 
+  # Template used to create each Dashboard pod.
   template:
     metadata:
+      # Label assigned to each Dashboard pod.
+      # This label is also used by the Service to find the pods.
       labels:
-        app: dashboard-service
+        app: dashboard
 
     spec:
       containers:
-        - name: dashboard-service
+        - # Name of the container inside the pod.
+          name: dashboard
 
-          image: cheecaixi/bank-dashboard:latest
-
-          imagePullPolicy: IfNotPresent
+          # Docker image used to create the Dashboard container.
+          image: cheecaixi/dashboard:latest
 
           ports:
+            # Streamlit Dashboard runs on port 8501.
             - containerPort: 8501
 
+          # Environment variables passed into the container.
           env:
-            - name: GATEWAY_URL
-              value: "http://api-gateway-service:8080"
+            - # URL of the API Gateway.
+              # The actual value is stored in the ConfigMap.
+              name: GATEWAY_URL
 
+              valueFrom:
+                configMapKeyRef:
+                  # Name of the ConfigMap containing the gateway URL.
+                  name: dashboard-config
+
+                  # Key inside the ConfigMap.
+                  key: GATEWAY_URL
+
+          # CPU and memory resources allocated to each Dashboard pod.
           resources:
             requests:
+              # Minimum CPU requested by the pod.
               cpu: "100m"
+
+              # Minimum memory requested by the pod.
               memory: "128Mi"
 
             limits:
+              # Maximum CPU the pod can use.
               cpu: "500m"
+
+              # Maximum memory the pod can use.
               memory: "512Mi"
+
+          # Readiness probe checks whether the pod is ready
+          # to receive traffic.
+          readinessProbe:
+            httpGet:
+              # Streamlit root page is used as the health endpoint.
+              path: /
+
+              # Streamlit port.
+              port: 8501
+
+            # Wait 10 seconds after startup before checking.
+            initialDelaySeconds: 10
+
+            # Check readiness every 10 seconds.
+            periodSeconds: 10
+
+          # Liveness probe checks whether the container is still running
+          # correctly. If it repeatedly fails, Kubernetes can restart it.
+          livenessProbe:
+            httpGet:
+              # Streamlit root page.
+              path: /
+
+              # Streamlit port.
+              port: 8501
+
+            # Wait 30 seconds after startup before checking.
+            # This gives Streamlit enough time to start.
+            initialDelaySeconds: 30
+
+            # Check liveness every 20 seconds.
+            periodSeconds: 20
