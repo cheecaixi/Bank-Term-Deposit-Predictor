@@ -5,6 +5,8 @@
 import os
 import joblib
 import pandas as pd
+from training.cleaning import load_data, clean_data
+from training.features import prepare_features, build_preprocessor
 
 from sklearn.model_selection import (
     train_test_split,
@@ -32,9 +34,6 @@ from imblearn.over_sampling import SMOTE
 
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
-
-from cleaning import load_data, clean_data
-from features import prepare_features, build_preprocessor
 
 
 from config import (

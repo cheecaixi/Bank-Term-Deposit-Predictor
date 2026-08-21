@@ -6,6 +6,10 @@ import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# Import project functions
+from training.cleaning import load_data, clean_data
+from training.features import prepare_features
+
 from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
 
@@ -22,9 +26,6 @@ from sklearn.metrics import (
     PrecisionRecallDisplay
 )
 
-# Import project functions
-from cleaning import load_data, clean_data
-from features import prepare_features
 
 # Import shared configuration
 from config import (
