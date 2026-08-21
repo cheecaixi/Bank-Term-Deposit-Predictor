@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bank_marketing"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -53,6 +53,13 @@ services:
       - "7002:7002"
     environment:
       - PORT=7002
+      - AI_SERVICE_URL=http://ai-inference:7000
+      - GATEWAY_SERVICE_URL=http://api-gateway:8080
+      - DATABASE_SERVICE_URL=http://database-service:8000
+      - MONITORING_DATABASE_PATH=/data/monitoring.db
+      - POLL_INTERVAL_SECONDS=30
+    volumes:
+      - monitoring_data:/data
 
   # Mya: API Gateway 
   api-gateway:
@@ -85,3 +92,6 @@ services:
       - GATEWAY_URL=http://api-gateway:8080
     depends_on:
       - api-gateway
+
+volumes:
+  monitoring_data:
