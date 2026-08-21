@@ -67,6 +67,7 @@ dashboard_service/
 ## Requirements
 Install dependencies:
 ```text
+cd dashboard_service
 pip install -r requirements.txt
 ```
 
