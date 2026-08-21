@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-config
+data:
+  postgres-db: bank_marketing
+  postgres-user: postgres

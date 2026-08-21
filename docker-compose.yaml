@@ -54,7 +54,7 @@ services:
     environment:
       - PORT=7002
 
-  # Mya: API Gateway 
+  # Mya: API Gateway
   api-gateway:
     build:
       context: ./api_gateway
