@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: bank_marketing
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     healthcheck:
@@ -35,7 +35,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres-db:5432/bank_marketing
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-db:5432/bank_marketing
       - PORT=8000
     depends_on:
       postgres-db:
