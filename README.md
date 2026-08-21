@@ -190,3 +190,36 @@ Start with **model development (Step 2)** because everything else (API, DB, dash
 
 ---
 
+# 4. Run the entire system using Docker Compose
+```text
+docker compose up --build -d
+```
+Verification & Status Check:
+```text
+# Check if all 6 containers are running and healthy
+docker compose ps
+
+# Stream logs to ensure services are starting up without errors
+docker compose logs -f
+```
+## Access Service Endpoints
+```text
+Dashboard Interface (Cai Xi): http://localhost:8501
+
+API Gateway Documentation (Mya): http://localhost:8080/docs
+
+Database Service Documentation (Su): http://localhost:8000/docs
+
+AI Inference API (Amanda): http://localhost:7000/docs
+
+Monitoring Service (Su): http://localhost:7002/docs
+```
+
+Stop & Clean Up
+```text
+# Stop containers while preserving database volume data
+docker compose down
+
+# Stop containers and remove volumes to reset database completely
+docker compose down -v
+```
