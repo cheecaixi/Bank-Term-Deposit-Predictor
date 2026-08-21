@@ -94,8 +94,10 @@ class CustomerPredictModel(BaseModel):
     batch_id: Optional[int] = Field(None, gt=0, example=1)
 
 class BatchUploadModel(BaseModel):
-    file_name: str = Field(..., example="bank_customers_august.csv")
-    total_records: int = Field(..., gt=0, example=50)
+    file_name: Optional[str] = Field(None, example="bank_customers_august.csv")
+    total_records: Optional[int] = Field(None, gt=0, example=50)
+    file_hash: Optional[str] = Field(None, example="a1b2c3d4e5f6...")
+    records: Optional[list] = Field(default=[], example=[])
 
 class CustomerUpdateModel(BaseModel):
     phone_number: Optional[str] = Field(None, pattern=r"^\d{8}$", example="91234567")
@@ -255,16 +257,53 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 # ----------------------------------------------------
 # 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)[cite: 29]
 # ----------------------------------------------------
-@app.post("/api/batch-uploads", tags=["Batch Uploads"])
-async def create_batch_upload(batch: BatchUploadModel):
+@app.get("/api/batch-uploads/check/{file_hash}", tags=["Batch Uploads"])
+@app.get("/api/batch-uploads/{file_hash}", tags=["Batch Uploads"])
+async def check_batch_upload_by_hash(file_hash: str):
     """
-    Register a new batch upload record in Member D.[cite: 29]
+    FIXES 404: Check if a batch upload exists using its SHA-256 file hash.
     """
     async with httpx.AsyncClient() as client:
         try:
+            response = await client.get(
+                f"{DATABASE_URL}/batch-uploads/check/{file_hash}",
+                timeout=TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return {"exists": False, "file_hash": file_hash}
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Member D (Database Service) error: {exc.response.text}"
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Member D (Database Service) unreachable: {exc}"
+            )
+
+@app.post("/api/batch-uploads", tags=["Batch Uploads"])
+async def create_batch_upload(batch: BatchUploadModel):
+    """
+    FIXES 422: Register a new batch upload record in Member D.
+    Automatically handles payloads containing file_hash or direct records list.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            payload = batch.model_dump(exclude_none=True)
+            
+            # Auto-populate metadata defaults if records are supplied directly
+            if "records" in payload and payload["records"]:
+                if "total_records" not in payload:
+                    payload["total_records"] = len(payload["records"])
+                if "file_name" not in payload:
+                    payload["file_name"] = "batch_upload.csv"
+
             response = await client.post(
                 f"{DATABASE_URL}/batch-uploads",
-                json=batch.model_dump(),
+                json=payload,
                 timeout=TIMEOUT_SECONDS
             )
             response.raise_for_status()
@@ -279,7 +318,6 @@ async def create_batch_upload(batch: BatchUploadModel):
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Member D (Database Service) unreachable: {exc}"
             )
-
 
 @app.get("/api/batch-uploads/{batch_id}/customers", tags=["Batch Uploads"])
 async def get_customers_by_batch(batch_id: int):
