@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bank_marketing"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -58,10 +58,15 @@ services:
       - DATABASE_SERVICE_URL=http://database-service:8000
       - MONITORING_DATABASE_PATH=/data/monitoring.db
       - POLL_INTERVAL_SECONDS=30
+<<<<<<< HEAD
+    volumes:
+      - monitoring_data:/data
+=======
       - REQUEST_TIMEOUT_SECONDS=5
       - LOG_RETENTION_LIMIT=5000
     volumes:
       - monitoring-data:/data
+>>>>>>> af144e9be92cf2bf1757fda1a0ce8a161a0de532
 
   # Mya: API Gateway
   api-gateway:
@@ -96,4 +101,8 @@ services:
       - api-gateway
 
 volumes:
+<<<<<<< HEAD
+  monitoring_data:
+=======
   monitoring-data:
+>>>>>>> af144e9be92cf2bf1757fda1a0ce8a161a0de532

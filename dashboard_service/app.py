@@ -49,6 +49,10 @@ if "history" not in st.session_state:
     st.session_state.history = []  # list of dicts, for this session's single predictions
 if "gateway_url" not in st.session_state:
     st.session_state.gateway_url = GATEWAY_URL
+if "current_batch_id" not in st.session_state:
+    st.session_state.current_batch_id = None
+if "last_batch_results" not in st.session_state:
+    st.session_state.last_batch_results = None    
 
 # ---------------------------------------------------------------
 # REAL API CALLS -- matches Member B's FastAPI gateway 
@@ -71,15 +75,9 @@ def get_all_batches() -> list:
     """
     url = f"{st.session_state.gateway_url}/api/batch-uploads"
 
-    response = requests.get(
-        url,
-        timeout=10
-    )
-
+    response = requests.get(url,timeout=10)
     response.raise_for_status()
-
     return response.json()
-
 
 def get_next_batch_id() -> int:
     """
