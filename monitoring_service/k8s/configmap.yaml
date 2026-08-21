@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+data:
+  AI_SERVICE_URL: http://ai-inference-service:7000
+  GATEWAY_SERVICE_URL: http://api-gateway-service:8080
+  DATABASE_SERVICE_URL: http://database-service:8000
+  MONITORING_DATABASE_PATH: /data/monitoring.db
+  POLL_INTERVAL_SECONDS: "30"
+  REQUEST_TIMEOUT_SECONDS: "5"
+  LOG_RETENTION_LIMIT: "5000"

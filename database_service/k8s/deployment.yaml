@@ -33,13 +33,22 @@ spec:
           env:
 
             - name: POSTGRES_DB
-              value: bank_marketing
+              valueFrom:
+                configMapKeyRef:
+                  name: database-config
+                  key: postgres-db
 
             - name: POSTGRES_USER
-              value: postgres
+              valueFrom:
+                configMapKeyRef:
+                  name: database-config
+                  key: postgres-user
 
             - name: POSTGRES_PASSWORD
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: database-secret
+                  key: postgres-password
 
           volumeMounts:
 
@@ -83,8 +92,8 @@ spec:
 
         - name: database-service
 
-          # CHANGE THIS TO YOUR DOCKER HUB IMAGE
-          image: your-dockerhub-username/database-service:latest
+          image: database_service-database-api:latest
+          imagePullPolicy: Never
 
           ports:
             - containerPort: 8000
@@ -92,5 +101,7 @@ spec:
           env:
 
             - name: DATABASE_URL
-
-              value: "postgresql+psycopg2://postgres:postgres@postgres-service:5432/bank_marketing"
+              valueFrom:
+                secretKeyRef:
+                  name: database-secret
+                  key: database-url

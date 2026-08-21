@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: ai-inference
-          image: cheecaixi/ai-inference:v1
+          image: amandalobo1/ai-inference:v1
           ports:
             - containerPort: 7000
           resources:

@@ -6,7 +6,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 # Import our cleaning functions
-from cleaning import load_data, clean_data
+from training.cleaning import load_data, clean_data
 
 
 # Numerical columns

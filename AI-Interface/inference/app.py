@@ -84,18 +84,16 @@ def health():
     """
 
     if model_loaded:
-
         return {
             "status": "healthy",
             "service": "ai-inference",
             "model_loaded": True
         }
 
-    return {
-        "status": "unhealthy",
-        "service": "ai-inference",
-        "model_loaded": False
-    }
+    raise HTTPException(
+        status_code=503,
+        detail="Prediction model is unavailable"
+    )
 
 
 @app.get("/model-info")

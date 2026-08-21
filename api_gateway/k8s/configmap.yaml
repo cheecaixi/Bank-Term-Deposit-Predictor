@@ -5,5 +5,5 @@ metadata:
 data:
   INFERENCE_SERVICE_URL: "http://ai-inference-service:7000"
   DATABASE_SERVICE_URL: "http://database-service:8000"
-  MONITORING_SERVICE_URL: "http://monitoring-service:5001"
+  MONITORING_SERVICE_URL: "http://monitoring-service:7002"
   TIMEOUT_SECONDS: "5.0"
