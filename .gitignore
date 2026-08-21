@@ -4,3 +4,4 @@ models/*.joblib
 .env
 **/.env
 *.log
+**/k8s/secret.yaml

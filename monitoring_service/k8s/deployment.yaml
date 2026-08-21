@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitoring-service
+  template:
+    metadata:
+      labels:
+        app: monitoring-service
+    spec:
+      containers:
+        - name: monitoring-service
+          image: monitoring_service-monitoring-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 7002
+          envFrom:
+            - configMapRef:
+                name: monitoring-config
+          volumeMounts:
+            - name: monitoring-storage
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 7002
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 7002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: monitoring-storage
+          persistentVolumeClaim:
+            claimName: monitoring-pvc

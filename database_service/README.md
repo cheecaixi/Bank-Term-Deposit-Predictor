@@ -383,27 +383,104 @@ docker run --name bank-database-api `
 
 ## Kubernetes deployment
 
-The manifests are under `k8s/`. Before deploying, replace the placeholder image
-in `k8s/deployment.yaml`:
+The Kubernetes setup uses:
 
-```yaml
-image: your-dockerhub-username/database-service:latest
-```
+- `k8s/configmap.yaml` for the PostgreSQL database name and username.
+- `k8s/secret.yaml` for the PostgreSQL password and database connection URL.
+- `k8s/persistent-volume-claim.yaml` for persistent PostgreSQL data.
+- `k8s/deployment.yaml` for PostgreSQL and the database API.
+- `k8s/service.yaml` for stable in-cluster DNS names and ports.
 
-Then apply the manifests from this directory:
+`secret.yaml` is intentionally ignored by Git. Create it from the safe example
+and replace both `CHANGE_ME` values before deployment:
 
 ```powershell
-kubectl apply -f k8s\persistent-volume-claim.yaml
-kubectl apply -f k8s\deployment.yaml
-kubectl apply -f k8s\service.yaml
+cd D:\Bank-Term-Deposit-Predictor
+Copy-Item database_service\k8s\secret.example.yaml database_service\k8s\secret.yaml
+# Edit database_service\k8s\secret.yaml before continuing.
+```
+
+### Deploy to Minikube with the local Compose image
+
+Start Minikube, build the database API image, and copy it into Minikube's image
+store:
+
+```powershell
+minikube start --driver=docker
+docker compose -f database_service\compose.yaml build database-api
+minikube image load database_service-database-api:latest
+```
+
+The local Minikube deployment uses the following settings in
+`k8s/deployment.yaml`:
+
+```yaml
+image: database_service-database-api:latest
+imagePullPolicy: Never
+```
+
+`Never` tells Kubernetes to use the image loaded into Minikube instead of
+trying to download it from Docker Hub.
+
+Apply all manifests:
+
+```powershell
+kubectl apply -f database_service\k8s\configmap.yaml
+kubectl apply -f database_service\k8s\secret.yaml
+kubectl apply -f database_service\k8s\persistent-volume-claim.yaml
+kubectl apply -f database_service\k8s\service.yaml
+kubectl apply -f database_service\k8s\deployment.yaml
 ```
 
 Check the deployment:
 
 ```powershell
+kubectl rollout status deployment/postgres --timeout=180s
+kubectl rollout status deployment/database-service --timeout=180s
 kubectl get pods
 kubectl get services
+kubectl get pvc
 ```
+
+The API can restart briefly while PostgreSQL performs its first initialization.
+It should settle at `1/1 Running` after PostgreSQL becomes ready.
+
+### Verify the ConfigMap and Secret
+
+Check the non-sensitive ConfigMap values inside the PostgreSQL pod:
+
+```powershell
+$dbName = kubectl exec deployment/postgres -- printenv POSTGRES_DB
+$dbUser = kubectl exec deployment/postgres -- printenv POSTGRES_USER
+
+if ($dbName.Trim() -eq "bank_marketing") { Write-Host "ConfigMap database: PASS" }
+if ($dbUser.Trim() -eq "postgres") { Write-Host "ConfigMap username: PASS" }
+```
+
+Confirm the Secret values exist without displaying them:
+
+```powershell
+kubectl exec deployment/postgres -- sh -c 'test -n "$POSTGRES_PASSWORD"'
+if ($LASTEXITCODE -eq 0) { Write-Host "POSTGRES_PASSWORD Secret: PASS" }
+
+kubectl exec deployment/database-service -- sh -c 'test -n "$DATABASE_URL"'
+if ($LASTEXITCODE -eq 0) { Write-Host "DATABASE_URL Secret: PASS" }
+```
+
+If Compose already occupies host port `8000`, forward Kubernetes to `8001`:
+
+```powershell
+kubectl port-forward service/database-service 8001:8000
+```
+
+Keep that command running and test in another terminal:
+
+```powershell
+Invoke-RestMethod http://localhost:8001/health
+Invoke-RestMethod http://localhost:8001/customers
+```
+
+Swagger UI is available at <http://localhost:8001/docs>.
 
 ## Troubleshooting
 

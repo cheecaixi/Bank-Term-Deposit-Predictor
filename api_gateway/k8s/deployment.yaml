@@ -25,4 +25,4 @@ spec:
         - name: DATABASE_SERVICE_URL
           value: "http://database-service:8000"
         - name: MONITORING_SERVICE_URL
-          value: "http://monitoring-service:5001"
+          value: "http://monitoring-service:7002"
