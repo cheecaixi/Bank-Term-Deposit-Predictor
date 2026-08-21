@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - INFERENCE_SERVICE_URL=http://host.docker.internal:7000
+      - DATABASE_SERVICE_URL=http://host.docker.internal:8000
+      - MONITORING_SERVICE_URL=http://host.docker.internal:7002
+      - TIMEOUT_SECONDS=5.0
