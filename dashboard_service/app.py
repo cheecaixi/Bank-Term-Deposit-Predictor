@@ -1,14 +1,8 @@
 """
 Bank Marketing Dashboard Service
 =================================
-Student C's microservice. Talks ONLY to the API Gateway (Member B) --
+Member C's microservice. Talks ONLY to the API Gateway (Member B) --
 never directly to Inference, Database, or Monitoring.
-
-GATEWAY CONTRACT (matches Member B's actual FastAPI code)
------------------------------------------------------------
-  POST {GATEWAY_URL}/api/predict   -> single customer -> {"prediction":.., "probability":..}
-  GET  {GATEWAY_URL}/api/results   -> list of all past logged predictions (raw, not aggregated)
-  GET  {GATEWAY_URL}/api/logs      -> monitoring/system logs
 """
 
 import os
@@ -46,16 +40,16 @@ st.set_page_config(page_title="Bank Marketing Dashboard", layout="wide", page_ic
 # SESSION STATE
 # ---------------------------------------------------------------
 if "history" not in st.session_state:
-    st.session_state.history = []  # list of dicts, for this session's single predictions
+    st.session_state.history = []  # Stores the recent single-customer predictions made during the current session
 if "gateway_url" not in st.session_state:
-    st.session_state.gateway_url = GATEWAY_URL
+    st.session_state.gateway_url = GATEWAY_URL #Stores the API Gateway address
 if "current_batch_id" not in st.session_state:
-    st.session_state.current_batch_id = None
+    st.session_state.current_batch_id = None #Stores the Batch ID currently being viewed/processed
 if "last_batch_results" not in st.session_state:
-    st.session_state.last_batch_results = None    
+    st.session_state.last_batch_results = None #Stores the latest batch prediction results so they remain available after Streamlit reruns
 
 # ---------------------------------------------------------------
-# REAL API CALLS -- matches Member B's FastAPI gateway 
+# API CALLS -- matches Member B's FastAPI gateway 
 # ---------------------------------------------------------------
 def call_predict_api(record: dict) -> dict:
     """
@@ -74,7 +68,6 @@ def get_all_batches() -> list:
     Used to check whether a CSV file has already been uploaded.
     """
     url = f"{st.session_state.gateway_url}/api/batch-uploads"
-
     response = requests.get(url,timeout=10)
     response.raise_for_status()
     return response.json()
@@ -84,19 +77,14 @@ def get_next_batch_id() -> int:
     Retrieve the latest batch ID from the database through
     the API Gateway and return the next incremental ID.
     """
-
     batches = get_all_batches()
-
     if not batches:
         return 1
 
-    latest_batch_id = max(
-        int(batch["batch_id"])
-        for batch in batches
-    )
+    latest_batch_id = max(int(batch["batch_id"])
+                          for batch in batches)
 
     return latest_batch_id + 1
-
 
 def check_existing_batch(file_name: str):
     """
@@ -107,13 +95,10 @@ def check_existing_batch(file_name: str):
         Existing batch information if found.
         None if the file has never been uploaded.
     """
-
     batches = get_all_batches()
 
     for batch in batches:
-
         if batch.get("file_name") == file_name:
-
             return batch
 
     return None
@@ -191,53 +176,32 @@ def calculate_file_hash(uploaded_file) -> str:
     file_bytes = uploaded_file.getvalue()
     return hashlib.sha256(file_bytes).hexdigest()
 
-
-def create_batch_upload(
-    file_name: str,
-    total_records: int,
-    file_hash: str
-) -> dict:
+def create_batch_upload(file_name: str, total_records: int, file_hash: str) -> dict:
     """
     Create a new batch record through the API Gateway.
-
     Member D generates the Batch ID automatically.
     """
-
     url = f"{st.session_state.gateway_url}/api/batch-uploads"
-
-    response = requests.post(
-        url,
-        json={
-            "file_name": file_name,
-            "total_records": total_records,
-            "file_hash": file_hash
-        },
-        timeout=10
-    )
-
+    response = requests.post(url, 
+                             json={"file_name": file_name,
+                                   "total_records": total_records,
+                                   "file_hash": file_hash},
+                                   timeout=10)
     response.raise_for_status()
-
     return response.json()
-
 
 def check_existing_batch(file_hash: str):
     """
     Check whether the uploaded CSV already exists
     using its SHA-256 file hash.
     """
-
     url = (
         f"{st.session_state.gateway_url}"
         f"/api/batch-uploads/check/{file_hash}"
     )
 
-    response = requests.get(
-        url,
-        timeout=10
-    )
-
+    response = requests.get(url, timeout=10)
     response.raise_for_status()
-
     result = response.json()
 
     if result.get("exists"):
@@ -245,19 +209,13 @@ def check_existing_batch(file_hash: str):
 
     return None
 
-
-def predict_many(
-    df: pd.DataFrame,
-    batch_id: int,
-    progress_callback=None
-):
+def predict_many(df: pd.DataFrame,batch_id: int,progress_callback=None):
     """
     Generate predictions for all customers in a batch.
 
     All prediction requests are sent through the API Gateway.
     Temporary connection/server errors are retried.
     """
-
     results = []
     total_records = len(df)
 
@@ -266,14 +224,8 @@ def predict_many(
         # ---------------------------------------------------------
         # BUILD CUSTOMER RECORD
         # ---------------------------------------------------------
-
-        record = {
-            "phone_number": str(
-                row["phone_number"]
-            ).strip(),
-
+        record = {"phone_number": str(row["phone_number"]).strip(),
             "batch_id": batch_id,
-
             "age": int(row["age"]),
             "job": str(row["job"]),
             "marital": str(row["marital"]),
@@ -290,35 +242,27 @@ def predict_many(
             "previous": int(row["previous"]),
             "poutcome": str(row["poutcome"])
         }
-
         # ---------------------------------------------------------
         # RETRY PREDICTION REQUEST
         # ---------------------------------------------------------
-
         max_retries = 3
         result = None
 
         for attempt in range(max_retries):
-
             try:
-
                 result = call_predict_api(record)
-
                 break
 
             except requests.exceptions.HTTPError as error:
-
                 status_code = (
                     error.response.status_code
                     if error.response is not None
                     else None
                 )
-
                 if (
                     status_code in [500, 502, 503, 504]
                     and attempt < max_retries - 1
                 ):
-
                     wait_time = 2 ** attempt
 
                     st.warning(
@@ -327,9 +271,7 @@ def predict_many(
                         f"(HTTP {status_code}). "
                         f"Retrying in {wait_time}s..."
                     )
-
                     time.sleep(wait_time)
-
                     continue
 
                 error_message = (
@@ -351,19 +293,14 @@ def predict_many(
                 requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout
             ) as error:
-
                 if attempt < max_retries - 1:
-
                     wait_time = 2 ** attempt
-
                     st.warning(
                         f"⚠️ Row {index + 1}: "
                         "API Gateway temporarily unavailable. "
                         f"Retrying in {wait_time}s..."
                     )
-
                     time.sleep(wait_time)
-
                     continue
 
                 st.error(
@@ -375,106 +312,75 @@ def predict_many(
                 return None
 
             except Exception as error:
-
                 st.error(
                     f"❌ Unexpected error at row "
                     f"{index + 1}: {error}"
                 )
-
                 return None
 
         # ---------------------------------------------------------
         # CHECK RESULT
         # ---------------------------------------------------------
-
         if result is None:
-
             st.error(
                 f"❌ No prediction result received "
                 f"for row {index + 1}."
             )
-
             return None
 
         # ---------------------------------------------------------
         # VALIDATE API RESPONSE
         # ---------------------------------------------------------
-
         if "probability" not in result:
-
             st.error(
                 f"❌ API response for row {index + 1} "
                 "does not contain 'probability'."
             )
-
             return None
 
         # Member B's Gateway contract uses "prediction".
         if "prediction" not in result:
-
             st.error(
                 f"❌ API response for row {index + 1} "
                 "does not contain 'prediction'."
             )
-
             return None
 
         # ---------------------------------------------------------
         # STORE RESULT
         # ---------------------------------------------------------
-
         results.append(result)
 
         # ---------------------------------------------------------
         # UPDATE PROGRESS
         # ---------------------------------------------------------
-
         if progress_callback and total_records > 0:
-
-            progress_callback(
-                len(results) / total_records
-            )
+            progress_callback(len(results) / total_records)
 
     # -------------------------------------------------------------
     # BUILD RESULT DATAFRAME
     # -------------------------------------------------------------
-
     out = df.copy()
-
     out["batch_id"] = batch_id
+    out["probability"] = [result["probability"]
+                          for result in results]
 
-    out["probability"] = [
-        result["probability"]
-        for result in results
-    ]
-
-    out["prediction"] = [
-        result["prediction"]
-        for result in results
-    ]
-
+    out["prediction"] = [result["prediction"]
+                         for result in results]
     return out
-
 
 def get_batch_results(batch_id: int):
     """
     Retrieve previously stored prediction results
     for a specific Batch ID through the API Gateway.
     """
-
     url = (
         f"{st.session_state.gateway_url}"
         f"/api/batch-uploads/"
         f"{batch_id}/results"
     )
-
-    response = requests.get(
-        url,
-        timeout=10
-    )
-
+    response = requests.get(url,timeout=10)
     response.raise_for_status()
-
     return response.json()
 
 # ---------------------------------------------------------------
@@ -530,15 +436,13 @@ with st.sidebar:
 st.title("💰 Bank Marketing AI Dashboard")
 st.caption(f"🟢 System operational ")
 st.write(
-    "AI-assisted customer prioritisation for term deposit campaigns."
-)
+    "AI-assisted customer prioritisation for term deposit campaigns.")
 tab1, tab2, tab3, tab4 = st.tabs(["👨‍💼 Customer Prediction", "📂 Batch Prediction", "📊 Campaign Analytics", "🖥️ System Monitoring"])
 
 # ---------------------------------------------------------------
 # TAB 1: SINGLE CUSTOMER PREDICTION
 # ---------------------------------------------------------------
 with tab1:
-
     st.subheader("👨‍💼 Customer Subscription Prediction")
 
     st.write(
@@ -552,13 +456,11 @@ with tab1:
     # =============================================================
     # 1. CUSTOMER SEARCH
     # =============================================================
-
     st.markdown("### 🔎 Find Customer")
 
     search_col1, search_col2 = st.columns([3, 1])
 
     with search_col1:
-
         phone_number = st.text_input(
             "Phone Number",
             placeholder="e.g. 91234567",
@@ -568,7 +470,6 @@ with tab1:
         )
 
     with search_col2:
-
         st.write("")
         st.write("")
 
@@ -580,7 +481,6 @@ with tab1:
     # =============================================================
     # SEARCH CUSTOMER
     # =============================================================
-
     if search_clicked:
 
         if not phone_number.strip():
@@ -589,16 +489,13 @@ with tab1:
                 "❌ Please enter a phone number before "
                 "generating a prediction."
             )
-
         elif not phone_number.strip().isdigit() or len(phone_number.strip()) != 8:
 
             st.error(
                 "❌ Invalid phone number. "
                 "Phone number must contain exactly 8 digits."
             )
-
         else:
-
             with st.spinner("Searching customer records..."):
 
                 try:
@@ -632,7 +529,6 @@ with tab1:
                         )
 
                 except Exception as e:
-
                     st.error(
                         f"❌ Unable to search customer: {e}"
                     )
@@ -640,21 +536,14 @@ with tab1:
     # =============================================================
     # EXISTING CUSTOMER STATUS
     # =============================================================
-
-    existing_customer = st.session_state.get(
-        "found_customer"
-    )
-
+    existing_customer = st.session_state.get("found_customer")
     if existing_customer:
-
         st.caption(
             "Customer information has been loaded from the database. "
             "You can review and edit the information before generating "
             "a new prediction."
         )
-
     else:
-
         st.caption(
             "No customer record is currently loaded. "
             "Enter the customer information manually."
@@ -665,7 +554,6 @@ with tab1:
     # =============================================================
     # LOAD CUSTOMER DEFAULT VALUES
     # =============================================================
-
     if existing_customer:
 
         default_age = existing_customer.get(
@@ -709,7 +597,6 @@ with tab1:
         )
 
     else:
-
         default_age = 35
         default_job = JOB_OPTIONS[0]
         default_marital = MARITAL_OPTIONS[0]
@@ -722,23 +609,18 @@ with tab1:
     # =============================================================
     # CUSTOMER INFORMATION FORM
     # =============================================================
-
     with st.form("single_predict_form"):
 
         # =========================================================
         # CUSTOMER INFORMATION
         # =========================================================
-
         st.markdown("### 👤 Customer Information")
 
-        st.caption(
-            "Basic demographic and financial information."
-        )
+        st.caption("Basic demographic and financial information.")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-
             age = st.number_input(
                 "Age",
                 min_value=18,
@@ -748,7 +630,6 @@ with tab1:
             )
 
         with col2:
-
             job = st.selectbox(
                 "Job",
                 JOB_OPTIONS,
@@ -760,7 +641,6 @@ with tab1:
             )
 
         with col3:
-
             marital = st.selectbox(
                 "Marital Status",
                 MARITAL_OPTIONS,
@@ -774,7 +654,6 @@ with tab1:
         col1, col2, col3 = st.columns(3)
 
         with col1:
-
             education = st.selectbox(
                 "Education",
                 EDUCATION_OPTIONS,
@@ -786,7 +665,6 @@ with tab1:
             )
 
         with col2:
-
             default = st.selectbox(
                 "Credit Default",
                 YES_NO_OPTIONS,
@@ -804,39 +682,34 @@ with tab1:
         # =========================================================
         # FINANCIAL & LOAN INFORMATION
         # =========================================================
-
         st.markdown("### 💰 Financial & Loan Information")
 
-        st.caption(
-            "Information about the customer's account balance "
-            "and existing loans."
-        )
+        st.caption("Information about the customer's account balance and existing loans.")
 
         col1, col2, col3 = st.columns(3)
 
         EUR_TO_SGD = 1.48
 
         with col1:
-
-            balance = st.number_input(
-                "Account Balance (€)",
-                min_value=-100000.0,
-                value=float(default_balance),
+            balance_sgd = st.number_input(
+                "Account Balance (SGD)",
+                min_value=-1000000.0,
+                value=float(default_balance * EUR_TO_SGD),
                 step=100.0,
                 help=(
-                    "Customer's account balance in euros. "
-                    "The EUR value is sent to the AI model."
+                    "Enter the customer's account balance in Singapore Dollars (SGD). "
+                    "The value will be automatically converted to EUR before being "
+                    "sent to the AI model."
                 )
             )
-
-            balance_sgd = balance * EUR_TO_SGD
+            # Convert SGD → EUR for the prediction model
+            balance_eur = balance_sgd / EUR_TO_SGD
 
             st.caption(
-                f"≈ SGD ${balance_sgd:,.2f}"
+                f"≈ EUR €{balance_eur:,.2f} sent to AI model"
             )
 
         with col2:
-
             housing = st.selectbox(
                 "Housing Loan",
                 YES_NO_OPTIONS,
@@ -851,7 +724,6 @@ with tab1:
             )
 
         with col3:
-
             loan = st.selectbox(
                 "Personal Loan",
                 YES_NO_OPTIONS,
@@ -870,18 +742,13 @@ with tab1:
         # =========================================================
         # CURRENT CAMPAIGN INFORMATION
         # =========================================================
-
         st.markdown("### 📞 Current Campaign Information")
 
-        st.caption(
-            "Information about the customer's contact history "
-            "during the current and previous marketing campaigns."
-        )
+        st.caption("Information about the customer's contact history during the current and previous marketing campaigns.")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-
             contact = st.selectbox(
                 "Contact Method",
                 CONTACT_OPTIONS,
@@ -892,7 +759,6 @@ with tab1:
             )
 
         with col2:
-
             day = st.number_input(
                 "Last Contact Day of Month",
                 min_value=1,
@@ -905,7 +771,6 @@ with tab1:
             )
 
         with col3:
-
             month = st.selectbox(
                 "Last Contact Month",
                 MONTH_OPTIONS,
@@ -918,7 +783,6 @@ with tab1:
         col1, col2, col3 = st.columns(3)
 
         with col1:
-
             campaign = st.number_input(
                 "Contacts in Current Campaign",
                 min_value=1,
@@ -931,7 +795,6 @@ with tab1:
             )
 
         with col2:
-
             pdays = st.number_input(
                 "Days Since Previous Contact",
                 min_value=-1,
@@ -946,7 +809,6 @@ with tab1:
             )
 
         with col3:
-
             previous = st.number_input(
                 "Previous Campaign Contacts",
                 min_value=0,
@@ -960,7 +822,6 @@ with tab1:
         col1, col2, col3 = st.columns(3)
 
         with col1:
-
             poutcome = st.selectbox(
                 "Previous Campaign Outcome",
                 POUTCOME_OPTIONS,
@@ -975,7 +836,6 @@ with tab1:
         # =========================================================
         # PREDICTION BUTTON
         # =========================================================
-
         submitted = st.form_submit_button(
             "🔮 Generate Subscription Prediction",
             type="primary",
@@ -985,13 +845,11 @@ with tab1:
     # =============================================================
     # GENERATE PREDICTION
     # =============================================================
-
     if submitted:
 
         # ---------------------------------------------------------
         # Validate phone number
         # ---------------------------------------------------------
-
         if not phone_number.strip():
 
             st.error(
@@ -1004,7 +862,6 @@ with tab1:
             # -----------------------------------------------------
             # Create complete request
             # -----------------------------------------------------
-
             record = {
 
                 # Customer identification
@@ -1033,7 +890,6 @@ with tab1:
             # -----------------------------------------------------
             # Call Member B
             # -----------------------------------------------------
-
             with st.spinner(
                 "Sending customer information to the AI system..."
             ):
@@ -1043,7 +899,6 @@ with tab1:
             # -----------------------------------------------------
             # Display result
             # -----------------------------------------------------
-
             if result:
 
                 probability = result["probability"]
@@ -1065,7 +920,6 @@ with tab1:
                 # -------------------------------------------------
                 # Customer identification
                 # -------------------------------------------------
-
                 if returned_customer_id is not None:
 
                     st.caption(
@@ -1076,7 +930,6 @@ with tab1:
                 # -------------------------------------------------
                 # Result metrics
                 # -------------------------------------------------
-
                 result_col1, result_col2 = st.columns([1, 2])
 
                 with result_col1:
@@ -1099,7 +952,6 @@ with tab1:
                     # -------------------------------------------------
                     # CAMPAIGN PRIORITY
                     # -------------------------------------------------
-
                     if probability >= 0.70:
 
                         priority = "🟢 High Priority"
@@ -1119,7 +971,6 @@ with tab1:
                         )
 
                     else:
-
                         priority = "🔴 Low Priority"
 
                         priority_description = (
@@ -1143,7 +994,6 @@ with tab1:
                 # -------------------------------------------------
                 # Interpretation
                 # -------------------------------------------------
-
                 if subscription == "Yes":
 
                     st.write(
@@ -1167,7 +1017,6 @@ with tab1:
                 # -------------------------------------------------
                 # Processing time
                 # -------------------------------------------------
-
                 if processing_time is not None:
 
                     st.caption(
@@ -1371,7 +1220,6 @@ with tab2:
             # =====================================================
             # SCENARIO A — DUPLICATE CSV
             # =====================================================
-
             if existing_batch is not None:
 
                 try:
