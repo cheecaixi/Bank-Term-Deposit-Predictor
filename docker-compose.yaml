@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # Su: PostgreSQL Database
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: bank-postgres
+    environment:
+      POSTGRES_DB: bank_marketing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Amanda: AI Inference Service
+  ai-inference:
+    build:
+      context: ./AI-Interface
+      dockerfile: Dockerfile
+    container_name: ai-inference-service
+    ports:
+      - "7000:7000"
+    environment:
+      - PORT=7000
+
+  # Su: Database Service
+  database-service:
+    build:
+      context: ./database_service
+      dockerfile: Dockerfile
+    container_name: database-service
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres-db:5432/bank_marketing
+      - PORT=8000
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+  # Su: Monitoring Service
+  monitoring-service:
+    build:
+      context: ./monitoring_service
+      dockerfile: Dockerfile
+    container_name: monitoring-service
+    ports:
+      - "7002:7002"
+    environment:
+      - PORT=7002
+
+  # Mya: API Gateway 
+  api-gateway:
+    build:
+      context: ./api_gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - INFERENCE_SERVICE_URL=http://ai-inference:7000
+      - DATABASE_SERVICE_URL=http://database-service:8000
+      - MONITORING_SERVICE_URL=http://monitoring-service:7002
+      - TIMEOUT_SECONDS=5.0
+    depends_on:
+      - ai-inference
+      - database-service
+      - monitoring-service
+
+  # Cai Xi: Streamlit Dashboard
+  dashboard-service:
+    build:
+      context: ./dashboard_service
+      dockerfile: Dockerfile
+    container_name: dashboard-service
+    ports:
+      - "8501:8501"
+    environment:
+      - GATEWAY_URL=http://api-gateway:8080
+    depends_on:
+      - api-gateway
