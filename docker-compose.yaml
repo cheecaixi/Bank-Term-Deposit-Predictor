@@ -53,6 +53,15 @@ services:
       - "7002:7002"
     environment:
       - PORT=7002
+      - AI_SERVICE_URL=http://ai-inference:7000
+      - GATEWAY_SERVICE_URL=http://api-gateway:8080
+      - DATABASE_SERVICE_URL=http://database-service:8000
+      - MONITORING_DATABASE_PATH=/data/monitoring.db
+      - POLL_INTERVAL_SECONDS=30
+      - REQUEST_TIMEOUT_SECONDS=5
+      - LOG_RETENTION_LIMIT=5000
+    volumes:
+      - monitoring-data:/data
 
   # Mya: API Gateway
   api-gateway:
@@ -85,3 +94,6 @@ services:
       - GATEWAY_URL=http://api-gateway:8080
     depends_on:
       - api-gateway
+
+volumes:
+  monitoring-data:
