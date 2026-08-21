@@ -54,9 +54,10 @@ dashboard_service/
 ├── app.py
 ├── requirements.txt
 ├── Dockerfile
-├── README.md
+├── docker-compose.yml
 ├── .dockerignore
 ├── .gitignore
+├── README.md
 └── k8s/
     ├── dashboard_deployment.yaml
     ├── dashboard_service.yaml
@@ -101,6 +102,27 @@ The Dashboard Docker image is also pushed to Docker Hub:
 ```text
 cheecaixi/dashboard:latest
 ```
+## Docker Compose
+
+Docker Compose can be used to run the Member C Dashboard Service as a container for local testing.
+
+Start the Dashboard:
+```text
+docker compose up --build
+```
+Open:
+```text
+http://localhost:8501
+```
+The Dashboard connects to the API Gateway running on the host machine using:
+
+GATEWAY_URL=http://host.docker.internal:8080
+
+Stop the Dashboard:
+```text
+docker compose down
+```
+
 ## Kubernetes
 Deploy all Dashboard Kubernetes resources:
 ```text
