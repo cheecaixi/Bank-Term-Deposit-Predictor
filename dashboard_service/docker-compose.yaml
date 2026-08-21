@@ -1,0 +1,24 @@
+services:
+
+  # Member C - Dashboard Service
+  dashboard:
+    # Build the Docker image using the Dockerfile in this folder
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Name of the container
+    container_name: dashboard
+
+    # Map host port 8501 to Streamlit port 8501
+    ports:
+      - "8501:8501"
+
+    # Environment variables
+    environment:
+      # API Gateway address.
+      # Change this to the actual gateway address when required.
+      GATEWAY_URL: "http://host.docker.internal:8080"
+
+    # Automatically restart the container if it stops unexpectedly
+    restart: unless-stopped
