@@ -1,3 +1,4 @@
+# Standard library and framework imports used by the gateway.
 import time
 from typing import Optional, Literal
 from fastapi import FastAPI, HTTPException, status, Request
@@ -7,23 +8,23 @@ import httpx
 
 from app.config import settings
 
-# Initialize FastAPI Application[cite: 8]
+# Create the single FastAPI application served by Uvicorn.
 app = FastAPI(
     title="Bank Marketing API Gateway",
     description="Central API Gateway orchestrating Member A (AI Inference), Member C (Dashboard), and Member D (Database/Monitoring).",
     version="1.0.0"
 )
 
-# Enable CORS for Member C's Dashboard / Frontend[cite: 8]
+# Allow the local dashboard origin to call the gateway from a browser.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8501"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load Microservice URLs from shared config[cite: 7, 8]
+# Resolve backend addresses once when the application starts.
 INFERENCE_URL = settings.INFERENCE_SERVICE_URL
 DATABASE_URL = settings.DATABASE_SERVICE_URL
 MONITORING_URL = settings.MONITORING_SERVICE_URL
@@ -35,13 +36,14 @@ TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 # ----------------------------------------------------
 @app.middleware("http")
 async def log_requests_to_monitoring(request: Request, call_next):
+    # Measure the complete request lifecycle, including downstream calls.
     start_time = time.time()
     
     response = await call_next(request)
     
     process_time_seconds = time.time() - start_time
     
-    # Filter out noisy root and health check logs
+    # Avoid sending routine liveness and root requests to monitoring.
     if request.url.path not in ["/health", "/"]:
         log_payload = {
             "endpoint": request.url.path,
@@ -65,9 +67,10 @@ async def log_requests_to_monitoring(request: Request, call_next):
 
 
 # ----------------------------------------------------
-# PYDANTIC SCHEMAS FOR DATA VALIDATION[cite: 8]
+# Pydantic schemas validate and document request payloads at the API boundary.
 # ----------------------------------------------------
 class CustomerPredictModel(BaseModel):
+    # Customer and campaign fields required by the prediction workflow.
     phone_number: str = Field(..., pattern=r"^\d{8}$", example="91234567")
     age: int = Field(..., example=35)
     job: Literal[
@@ -94,10 +97,12 @@ class CustomerPredictModel(BaseModel):
     batch_id: Optional[int] = Field(None, gt=0, example=1)
 
 class BatchUploadModel(BaseModel):
+    # Metadata required when registering a batch upload.
     file_name: str = Field(..., example="bank_customers_august.csv")
     total_records: int = Field(..., gt=0, example=50)
 
 class CustomerUpdateModel(BaseModel):
+    # Optional fields allow partial customer updates.
     phone_number: Optional[str] = Field(None, pattern=r"^\d{8}$", example="91234567")
     age: Optional[int] = Field(None, example=36)
     job: Optional[Literal[
@@ -119,6 +124,7 @@ class CustomerUpdateModel(BaseModel):
 # ----------------------------------------------------
 @app.get("/", tags=["Health"])
 def read_root():
+    # Provide a simple human-readable gateway status response.
     return {
         "message": "Bank Marketing API Gateway is running!",
         "docs": "Visit /docs for interactive Swagger UI documentation."
@@ -126,6 +132,7 @@ def read_root():
 
 @app.get("/health", tags=["Health"])
 def health_check():
+    # Used by Docker/Kubernetes probes to check gateway availability.
     return {"status": "healthy", "service": "api-gateway"}
 
 
@@ -134,6 +141,7 @@ def health_check():
 # ----------------------------------------------------
 @app.post("/api/predict", tags=["Predictions"])
 async def predict_subscription(customer_data: CustomerPredictModel):
+    # Orchestrate prediction, customer persistence, campaign history, and results.
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         
@@ -144,7 +152,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             if field not in ("phone_number", "batch_id")
         }
 
-        # Step A: Request prediction from Member A (AI Inference)[cite: 8]
+        # Step A: request a prediction from the AI Inference service.
         try:
             inference_response = await client.post(
                 f"{INFERENCE_URL}/predict",
@@ -164,7 +172,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 detail=f"Member A (AI Inference Service) unreachable: {exc}"
             )
 
-        # Step B: Persist customer, campaign, and prediction data to Member D[cite: 8]
+        # Step B: persist customer, campaign, and prediction data in the database service.
         try:
             customer_payload = {
                 field: payload[field]
@@ -201,7 +209,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                     )
                 customer_id = customer["customer_id"]
 
-                # Forward updated demographic data and batch_id to Member D[cite: 8, 29]
+                # Refresh the existing customer's details before recording this prediction.
                 await client.put(
                     f"{DATABASE_URL}/customers/{customer_id}",
                     json=customer_payload,
@@ -336,6 +344,7 @@ async def get_results_by_batch(batch_id: int):
 # ----------------------------------------------------
 @app.get("/api/results", tags=["Analytics"])
 async def fetch_historical_results():
+    # Forward requests for stored prediction history to the database service.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -484,6 +493,7 @@ async def delete_customer(customer_id: int):
 # ----------------------------------------------------
 @app.get("/api/logs", tags=["Monitoring"], summary="Get detailed log history")
 async def fetch_system_logs():
+    # Return request logs collected by the monitoring service.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -510,6 +520,7 @@ async def fetch_system_logs():
     summary="Get current health of all microservices"
 )
 async def fetch_monitoring_status():
+    # Return the current health status reported by monitoring.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -538,6 +549,7 @@ async def fetch_monitoring_status():
     summary="Get aggregated monitoring metrics"
 )
 async def fetch_monitoring_metrics():
+    # Return aggregated performance metrics reported by monitoring.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(

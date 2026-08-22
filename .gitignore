@@ -4,3 +4,6 @@ models/*.joblib
 .env
 **/.env
 *.log
+*.log
+**/k8s/secret.yaml
+**/_pytest_cache_/

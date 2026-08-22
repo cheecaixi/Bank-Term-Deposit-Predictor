@@ -1,14 +1,17 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
+  # Automatically scale gateway pods based on CPU utilisation.
   name: api-gateway-hpa
 spec:
+  # Deployment controlled by this autoscaler.
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: api-gateway-deployment
   minReplicas: 2
   maxReplicas: 5
+  # Scale when average CPU use reaches the configured target.
   metrics:
   - type: Resource
     resource:

@@ -1,10 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  # Deployment keeps the desired number of gateway pods running.
   name: api-gateway-deployment
   labels:
     app: api-gateway
 spec:
+  # Start two replicas for availability; HPA can increase this number.
   replicas: 2
   selector:
     matchLabels:
@@ -16,15 +18,16 @@ spec:
     spec:
       containers:
       - name: api-gateway
+        # Image built and published for the gateway service.
         image: myaphupwintsoe/api-gateway:v1
         imagePullPolicy: IfNotPresent
+        # FastAPI listens on port 8080 inside each pod.
         ports:
         - containerPort: 8080
         envFrom:
+        # Inject service URLs and timeout settings from the ConfigMap.
         - configMapRef:
             name: api-gateway-config
-        - secretRef:
-            name: api-gateway-secret
         resources:
           requests:
             cpu: "100m"
@@ -33,12 +36,14 @@ spec:
             cpu: "500m"
             memory: "256Mi"
         livenessProbe:
+          # Restart the pod if the gateway stops responding.
           httpGet:
             path: /health
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 15
         readinessProbe:
+          # Remove the pod from traffic until it is ready.
           httpGet:
             path: /health
             port: 8080
