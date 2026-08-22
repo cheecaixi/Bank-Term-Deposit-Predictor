@@ -25,7 +25,7 @@ The **API Gateway** serves as the central entry point and orchestrator for the B
  ▼                     ▼                     ▼
 ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
 │ Member A: AI      │ │ Member D: Database│ │ Member D: Monitor │
-│ (Inference/7000)  │ │ Service (7001)    │ │ Service (7002)    │
+│ (Inference/7000)  │ │ Service (8000)    │ │ Service (7002)    │
 └───────────────────┘ └───────────────────┘ └───────────────────┘
 
 ```
@@ -103,7 +103,9 @@ docker run -p 8080:8080 api-gateway:v1
 ### 3. Deploy to Kubernetes Cluster (Minikube)
 
 ```bash
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-
+kubectl apply -f k8s/hpa.yaml
 ```

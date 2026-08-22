@@ -1,13 +1,18 @@
 version: '3.8'
 
+# Standalone Compose file for running only the API Gateway.
+# The root docker-compose.yaml is used when running the full platform.
 services:
   api-gateway:
+    # Build the image from this service's Dockerfile and application code.
     build:
       context: .
       dockerfile: Dockerfile
     container_name: api-gateway
+    # Expose the gateway on port 8080 of the host machine.
     ports:
       - "8080:8080"
+    # In this standalone setup, backend services are reached through the host.
     environment:
       - PORT=8080
       - INFERENCE_SERVICE_URL=http://host.docker.internal:7000

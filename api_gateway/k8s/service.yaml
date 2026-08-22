@@ -1,13 +1,18 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: api-gateway-service         # 1. Internal DNS name used by other pods
+  # Stable DNS name used by other Kubernetes services.
+  name: api-gateway-service
 spec:
-  type: NodePort                    # 2. Exposes the service externally on Minikube
+  # NodePort exposes the gateway outside the cluster in Minikube.
+  type: NodePort
   selector:
-    app: api-gateway                # 3. Directs traffic to pods labeled 'app: api-gateway'
+    # Send traffic to pods carrying the matching application label.
+    app: api-gateway
   ports:
   - protocol: TCP
-    port: 8080                      # 4. Service Port inside the cluster
-    targetPort: 8080                # 5. Container Port running your FastAPI app
-    nodePort: 30080                 # 6. External Port accessible on Minikube/localhost
+    # Service and container ports used by FastAPI.
+    port: 8080
+    targetPort: 8080
+    # Host-facing Minikube port for external access.
+    nodePort: 30080
