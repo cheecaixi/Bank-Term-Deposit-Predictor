@@ -124,26 +124,39 @@ docker compose down
 ```
 
 ## Kubernetes
+Start Minikube:
+```text
+minikube start
+```
+Check that it is running:
+```text
+minikube status
+```
+
 Deploy all Dashboard Kubernetes resources:
 ```text
 kubectl apply -f k8s/
 ```
-Check the deployment:
+You can also apply them individually:
 ```text
-kubectl get deployments
+kubectl apply -f k8s/dashboard_configmap.yaml
+kubectl apply -f k8s/dashboard_deployment.yaml
+kubectl apply -f k8s/dashboard_service.yaml
+kubectl apply -f k8s/dashboard_hpa.yaml
 ```
-Check the pods:
+Check everything at once:
 ```text
 kubectl get pods
-```
-Check the service:
-```text
+kubectl get deployments
 kubectl get services
-```
-Check autoscaling:
-```
+kubectl get configmaps
 kubectl get hpa
 ```
+Or:
+```text
+kubectl get all
+```
+
 ## Kubernetes Configuration
 
 The ConfigMap stores the API Gateway URL used by the Dashboard.

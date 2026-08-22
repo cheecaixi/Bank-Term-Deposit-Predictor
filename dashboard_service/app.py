@@ -53,9 +53,7 @@ if "last_batch_results" not in st.session_state:
 # ---------------------------------------------------------------
 def call_predict_api(record: dict) -> dict:
     """
-    Send a customer prediction request to Member B API Gateway.
-    Member B forwards the 15 model features to Member A and
-    saves the customer, campaign history and prediction to Member D.
+    Send customer data to the API Gateway and return the prediction.
     """
     url = f"{st.session_state.gateway_url}/api/predict"
     response = requests.post(url, json=record, timeout=10)
@@ -64,7 +62,7 @@ def call_predict_api(record: dict) -> dict:
 
 def get_all_batches() -> list:
     """
-    Retrieve all previously uploaded batches through the API Gateway.
+    Retrieve all uploaded batches from the API Gateway.
     Used to check whether a CSV file has already been uploaded.
     """
     url = f"{st.session_state.gateway_url}/api/batch-uploads"
@@ -72,41 +70,16 @@ def get_all_batches() -> list:
     response.raise_for_status()
     return response.json()
 
-def get_next_batch_id() -> int:
-    """
-    Retrieve the latest batch ID from the database through
-    the API Gateway and return the next incremental ID.
-    """
-    batches = get_all_batches()
-    if not batches:
-        return 1
-
-    latest_batch_id = max(int(batch["batch_id"])
-                          for batch in batches)
-
-    return latest_batch_id + 1
-
-def check_existing_batch(file_name: str):
-    """
-    Check whether the uploaded CSV file has already been
-    registered in the database.
-
-    Returns:
-        Existing batch information if found.
-        None if the file has never been uploaded.
-    """
-    batches = get_all_batches()
-
-    for batch in batches:
-        if batch.get("file_name") == file_name:
-            return batch
-
-    return None
-
 def search_customer_by_phone(phone_number: str):
     """
-    Search Member D for an existing customer using their phone number.
-    The request is routed through Member B.
+    Search for an existing customer using their phone number.
+
+    The Dashboard sends the request to Member B (API Gateway).
+    Member B forwards the request to Member D (Database Service).
+
+    Returns:
+        dict: Customer information if the customer is found.
+        None: If no customer with the phone number exists.
     """
     url = (
         f"{st.session_state.gateway_url}"
@@ -179,7 +152,8 @@ def calculate_file_hash(uploaded_file) -> str:
 def create_batch_upload(file_name: str, total_records: int, file_hash: str) -> dict:
     """
     Create a new batch record through the API Gateway.
-    Member D generates the Batch ID automatically.
+    The request is forwarded to the Database Service,
+    which creates and returns the Batch ID.
     """
     url = f"{st.session_state.gateway_url}/api/batch-uploads"
     response = requests.post(url, 
@@ -691,20 +665,23 @@ with tab1:
         EUR_TO_SGD = 1.48
 
         with col1:
-            balance = st.number_input(
-                "Account Balance (€)",
+            balance_sgd = st.number_input(
+                "Account Balance (SGD)",
                 min_value=-1000000.0,
-                value=float(default_balance),
+                value=float(default_balance) * EUR_TO_SGD,
                 step=100.0,
                 help=(
-                    "Customer's account balance in euros." 
-                    "The EUR value is sent to the AI model."
+                    "Enter the customer's account balance in Singapore dollars. "
+                    "The value will be converted to euros before being sent "
+                    "to the AI model."
                 )
             )
 
-            balance_sgd = balance * EUR_TO_SGD
+            balance = balance_sgd / EUR_TO_SGD
 
-            st.caption(f"≈ SGD ${balance_sgd:,.2f}")
+            st.caption(
+                f"≈ EUR €{balance:,.2f} sent to AI model"
+            )
 
         with col2:
             housing = st.selectbox(
@@ -2510,7 +2487,7 @@ with tab4:
     def get_monitoring_data(endpoint):
         try:
             response = requests.get(
-                f"{GATEWAY_URL}{endpoint}",
+                f"{st.session_state.gateway_url}{endpoint}",
                 timeout=5
             )
 
