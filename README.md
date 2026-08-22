@@ -1,10 +1,7 @@
-# AIAD
+# AIAD – Bank Term Deposit Predictor
 
-## Start the database service
+## 1. Project Overview
 
-The easiest setup uses Docker Compose. It downloads PostgreSQL, builds the
-FastAPI database service, waits for PostgreSQL to become ready, and starts both
-containers:
 The **Bank Term Deposit Predictor** is a machine learning and microservices-based application designed to predict whether a bank customer is likely to subscribe to a term deposit.
 
 The project combines a trained machine learning model with a modular microservices architecture. Customer information is submitted through the dashboard, processed through the API Gateway and AI Inference Service, stored through the Database Service, and monitored through the Monitoring Service.
@@ -19,7 +16,7 @@ The complete system is containerized using Docker and deployed on Kubernetes (Mi
 
 **Engineering Goal:** Architect and deploy the end-to-end Machine Learning pipeline as a modular 5-microservice system consisting of AI Inference, API Gateway, Dashboard, Database, and Monitoring services.
 
-**Operational Goal:** Ensure high system availability, fault tolerance, monitoring, persistent storage, and horizontal pod autoscaling for the API Gateway and Dashboard services.
+**Operational Goal:** Ensure high system availability, fault tolerance, and horizontal pod autoscaling (HPA) for the AI Inference Service to support high-volume and concurrent requests during peak marketing campaigns.
 
 ---
 
@@ -161,54 +158,51 @@ The overall system follows the communication flow below:
                          │      API Gateway        │
                          │        Member B         │
                          │   Routing & Validation  │
-                         └───────┬────────┬────────┘
-                                 │        │
-                    ┌────────────┘        └──────────────┐
-                    ▼                                    ▼
-          ┌─────────────────────┐              ┌─────────────────────┐
-          │   AI Inference      │              │   Database Service  │
-          │      Member A       │              │      Member D       │
-          │  ML Prediction      │              │ Customer & Results  │
-          └─────────────────────┘              └──────────┬──────────┘
-                                                          │
-                                                          ▼
-                                             ┌─────────────────────┐
-                                             │     PostgreSQL      │
-                                             │   Persistent Data   │
-                                             └─────────────────────┘
-
-                         ┌─────────────────────────┐
-                         │   Monitoring Service    │
-                         │        Member D         │
-                         │ Logs, Health & Metrics  │
-                         └────────────┬────────────┘
+                         └───────┬───────┬─────────┘
+                                 │       │
+                    ┌────────────┘       └──────────────┐
+                    ▼                                   ▼
+          ┌─────────────────────┐             ┌─────────────────────┐
+          │   AI Inference      │             │   Database Service  │
+          │      Member A       │             │      Member D       │
+          │  ML Prediction      │             │ Customer & Results  │
+          └──────────┬──────────┘             └──────────┬──────────┘
+                     │                                   │
+                     └────────────────┬──────────────────┘
+                                      ▼
+                           ┌─────────────────────┐
+                           │     Monitoring      │
+                           │      Member D       │
+                           │ Logs & Performance  │
+                           └──────────┬──────────┘
                                       │
                                       ▼
-                         ┌─────────────────────────┐
-                         │   Monitoring Storage    │
-                         │     SQLite / PVC        │
-                         └─────────────────────────┘
-
-      Monitoring checks the health and performance of the other services.
-      The API Gateway sends request logs to the Monitoring Service.
+                           ┌─────────────────────┐
+                           │     PostgreSQL      │
+                           │   Persistent Data   │
+                           └─────────────────────┘
+```
 
 ### Architecture Flow
 
-```markdown
 ```text
 Dashboard
     │
     ▼
 API Gateway
+    │
     ├──────────────► AI Inference Service
+    │                    │
     │                    └── Prediction
     │
     ├──────────────► Database Service
+    │                    │
     │                    └── PostgreSQL
     │
     └──────────────► Monitoring Service
-                         └── Logs, Health & Metrics
-                              └── SQLite / PVC
+                         │
+                         └── Logs & Metrics
+```
 
 The Dashboard does not directly communicate with the AI Inference Service or PostgreSQL. Requests are routed through the API Gateway, providing a centralized entry point and clear separation between the frontend and backend services.
 
@@ -260,16 +254,16 @@ The trained model is then made available to the AI Inference Service.
 
 **Member B** develops the central API Gateway.
 
-The API Gateway exposes the following routes:
+Example routes include:
 
 ```text
-/api/predict
-/api/results
-/api/customers/{customer_id}
-/api/batch-uploads
-/api/logs
-/api/monitoring/status
-/api/monitoring/metrics
+/predict
+/results
+/customers
+/campaign-history
+/batch-uploads
+/monitoring
+```
 
 The API Gateway connects the Dashboard with the backend services.
 
@@ -389,129 +383,95 @@ Navigate to the Database Service directory:
 
 ```powershell
 cd D:\Bank-Term-Deposit-Predictor\database_service
+```
+
+Start the database service:
+
+```powershell
 docker compose up --build -d
+```
+
+Check the running containers:
+
+```powershell
 docker compose ps
 ```
 
-Then open <http://localhost:8000/docs>. For the full first-time setup,
-verification commands, stopping instructions, and troubleshooting, read the
-[database service guide](database_service/README.md).
+Then open:
 
-# 1. Project Objectives
-Machine Learning Goal: Train and validate a classification model to predict customer term deposit subscriptions using demographic and historical campaign data.
-
-Engineering Goal: Architect and deploy the end-to-end Machine Learning pipeline as a modular, 5-microservice system (AI Inference, API Gateway, Dashboard, Database, and Monitoring) on Kubernetes (Minikube).
-
-Operational Goal: Ensure high system availability, fault tolerance, and horizontal pod autoscaling (HPA) for the inference engine to support high-volume, concurrent requests during peak marketing campaigns.
-
-<<<<<<< Updated upstream
-# 2. Target Users
-Primary Users (Telesales & Bank Agents): Utilize the real-time UI during customer calls to receive instant subscription probabilities, allowing them to dynamically adapt sales strategies.
-
-Secondary Users (Marketing Analysts & Managers): Evaluate aggregate performance metrics, campaign trends, and customer conversion rates via the analytics interface to optimize resource allocation.
-
-Technical Users (DevOps & System Administrators): Monitor system performance, API request latency, container health, and model drift using the centralized logging service.
-
-# 3. Expected Outcomes
-Functional Deliverable: A fully containerized microservices application hosted on Kubernetes, leveraging an API gateway for dynamic service discovery and request routing.
-
-Business Value: Enhanced campaign conversion rates and lower operational overhead achieved through data-driven customer prioritization.
-
-Technical Quality Outcomes: A resilient, scalable architecture capable of handling peak workloads via autoscaling, supported by end-to-end observability and persistent data logging.
-
-Here’s a clear **architecture sketch in words** for your chosen dataset (Bank Marketing & Customer Behavior) and how to split the microservices among 4 members, with one extra service added for fairness:
-=======
-> **Note:** When running the complete project, return to the project root and use the root-level `docker-compose.yaml`. Use the Database Service Compose file only when testing that service independently.
->>>>>>> Stashed changes
-
----
-
-### 🏗️ Microservices Layout
-
-**1. AI Inference Service (Member A)**  
-- Trains and serves the ML model (predicts if a customer subscribes).  
-- REST API for predictions.  
-- Docker + Kubernetes scaling.  
-
-**2. API Gateway Service (Member B)**  
-- Routes requests between inference, database, dashboard, and monitoring.  
-- Handles authentication and load balancing.  
-- Docker + Kubernetes deployment.  
-
-**3. Dashboard Service (Member C)**  
-- Visualizes predictions, customer behavior insights, campaign success rates.  
-- User‑friendly interface (Streamlit/Flask/React).  
-- Docker + Kubernetes deployment.  
-
-**4. Database Service (Member D)**  
-- Stores customer records, predictions, logs.  
-- Schema design + persistence.  
-- Docker + Kubernetes deployment.  
-
-**5. Extra Service (also Member D)** → **Monitoring/Logging Service**  
-- Collects logs from inference + API gateway.  
-- Tracks model accuracy, campaign outcomes, errors.  
-- Provides analytics endpoints for dashboard.  
-- Docker + Kubernetes deployment.  
-
----
-
-<<<<<<< Updated upstream
-### 🔑 Why this works
-- Everyone owns a **full microservice** with Dockerfile + Kubernetes manifest.  
-- The database member has **two connected services (DB + Monitoring)**, making their workload equal to ML and dashboard members.  
-- Each service has **coding, deployment, and engineering depth**.  
-- Clear GitHub commit history shows contributions per member.  
-
----
-
-### 📊 Visual Flow (text sketch)
-```
-[Dashboard] <--> [API Gateway] <--> [AI Inference]
-                                <--> [Database]
-                                <--> [Monitoring/Logging]
+```text
+http://localhost:8000/docs
 ```
 
-### Initial system architecture diagram
-```
-                         ┌──────────────────────┐
-                         │      Dashboard       │
-                         │ Predictions & Charts │
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │     API Gateway      │
-                         │ Validation & Routing │
-                         └───────┬──────┬───────┘
-                                 │      │
-                    ┌────────────┘      └─────────────┐
-                    ▼                                 ▼
-        ┌──────────────────────┐          ┌──────────────────────┐
-        │ AI Inference Service │          │   Database Service   │
-        │ Predict Yes / No     │          │ Customers & Results  │
-        └──────────┬───────────┘          └──────────┬───────────┘
-                   │                                  │
-                   └──────────────┬───────────────────┘
-                                  ▼
-                       ┌──────────────────────┐
-                       │ Monitoring / Logging │
-                       │ Requests, Predictions│
-                       │ Errors & Performance │
-                       └──────────────────────┘
+For detailed first-time setup, verification commands, stopping instructions, and troubleshooting, refer to the Database Service README:
+
+```text
+database_service/README.md
 ```
 
-- Dashboard shows predictions + insights.  
-- API Gateway is the traffic controller.  
-- AI Inference is the brain.  
-- Database is the memory.  
-- Monitoring/Logging is the performance tracker.  
+> **Note:** When running the complete project, use the root-level `docker-compose.yml` instead of the individual Database Service Compose configuration.
 
 ---
-Since you’ve already chosen the **Bank Marketing & Customer Behavior dataset**, here’s the logical order to tackle the project so your team doesn’t get stuck later:
+
+# 12. Environment & Service Communication
+
+Docker Compose provides an internal network that allows services to communicate using their service names.
+
+For example:
+
+```text
+Dashboard
+    ↓
+http://api-gateway:8080
+
+API Gateway
+    ↓
+http://ai-inference:7000
+http://database-service:8000
+http://monitoring-service:7002
+
+Database Service
+    ↓
+postgres-db:5432
+```
+
+The integrated Compose stack and the standalone Database Service stack use
+the same local development credentials:
+
+```text
+Database: bank_marketing
+Username: postgres
+Password: postgres
+```
+
+The services use the following environment variables:
+
+### Dashboard
+
+```text
+GATEWAY_URL=http://api-gateway:8080
+```
+
+### API Gateway
+
+```text
+INFERENCE_SERVICE_URL=http://ai-inference:7000
+DATABASE_SERVICE_URL=http://database-service:8000
+MONITORING_SERVICE_URL=http://monitoring-service:7002
+```
+
+### Monitoring Service
+
+```text
+AI_SERVICE_URL=http://ai-inference:7000
+GATEWAY_SERVICE_URL=http://api-gateway:8080
+DATABASE_SERVICE_URL=http://database-service:8000
+```
+
+This allows services to communicate within the Docker Compose network using service names rather than `localhost`.
 
 ---
-=======
+
 # 13. Kubernetes Deployment
 
 The final system is designed to run on Kubernetes using Minikube.
@@ -520,8 +480,7 @@ The Kubernetes deployment includes:
 
 * AI Inference Deployment
 * AI Inference Service
-* API Gateway HPA
-* Dashboard HPA
+* AI Inference HPA
 * API Gateway Deployment
 * API Gateway Service
 * Dashboard Deployment
@@ -540,11 +499,7 @@ minikube start
 Apply the Kubernetes configurations:
 
 ```powershell
-kubectl apply -f AI-Interface/k8s/
-kubectl apply -f api_gateway/k8s/
-kubectl apply -f database_service/k8s/
-kubectl apply -f dashboard_service/k8s/
-kubectl apply -f monitoring_service/k8s/
+kubectl apply -f k8s/
 ```
 
 Check deployments:
@@ -575,74 +530,107 @@ kubectl get hpa
 
 # 14. Horizontal Pod Autoscaling
 
-Horizontal Pod Autoscaling (HPA) is configured for the API Gateway and Dashboard services.
+The AI Inference Service is designed to support horizontal scaling under increased workloads.
 
-Each HPA maintains between 2 and 5 replicas and scales the number of pods according to average CPU utilisation. This helps the system handle increased API requests and dashboard traffic during busy periods.
+The HPA monitors resource utilisation and can increase or decrease the number of AI Inference pods according to demand.
 
-The AI Inference Service currently runs with multiple Kubernetes replicas, but it does not have a separate HPA configuration.
->>>>>>> Stashed changes
+```text
+                    Incoming Requests
+                           │
+                           ▼
+                  AI Inference Service
+                           │
+                 ┌─────────┴─────────┐
+                 ▼                   ▼
+            AI Pod 1             AI Pod 2
+                 │                   │
+                 └─────────┬─────────┘
+                           │
+                       HPA Controller
+                           │
+                    Scale Up / Down
+```
 
-### 🪜 Recommended Order of Work
-
-**Step 1 – Define the Problem & Split Roles**  
-- Agree on the prediction task (e.g., *predict if a customer subscribes to a product*).  
-- Confirm microservice ownership:  
-  - Member A → AI Inference (ML model)  
-  - Member B → API Gateway  
-  - Member C → Dashboard  
-  - Member D → Database + Extra Service (e.g., Monitoring/Logging)
-
----
-
-**Step 2 – Model Development (Member A)**  
-- Train a baseline ML model (Logistic Regression or Random Forest).  
-- Test locally in Jupyter/Colab to confirm it works.  
-- Save the trained model file (`.pkl` or `.joblib`).  
-👉 Do this first because the **inference service is the “brain”** of the system — other services depend on its outputs.
+This allows the system to handle increased prediction requests during high-volume marketing campaigns.
 
 ---
 
-**Step 3 – Database & Schema Setup (Member D)**  
-- Design schema for storing customer records + predictions.  
-- Build DB service and Monitoring/Logging service.  
-- Test queries locally.  
-👉 This ensures you have a place to store and retrieve results before connecting the API gateway.
+# 15. Stopping & Cleaning Up
+
+### Stop Containers
+
+To stop the containers while preserving database volume data:
+
+```powershell
+docker compose down
+```
+
+### Remove Containers and Volumes
+
+To completely reset the database and remove persistent volume data:
+
+```powershell
+docker compose down -v
+```
+
+> **Warning:** `docker compose down -v` removes the Docker volumes used by the application. Any data stored in those volumes will be deleted.
 
 ---
 
-**Step 4 – API Gateway (Member B)**  
-- Build routes:  
-  - `/predict` → calls inference service.  
-  - `/results` → fetches from database.  
-  - `/logs` → fetches monitoring data.  
-- Test routing between services.  
-👉 This is the “traffic controller” — it connects ML, DB, and dashboard.
+# 16. Key System Features
+
+The completed system provides:
+
+* Machine learning-based term deposit prediction
+* Customer subscription probability
+* Configurable prediction threshold
+* Real-time prediction through the Dashboard
+* Customer prioritisation
+* Batch upload and batch result exploration
+* Persistent customer and prediction storage
+* Campaign history
+* API Gateway-based service communication
+* Centralised monitoring
+* Docker containerisation
+* Docker Compose orchestration
+* Kubernetes deployment
+* Horizontal Pod Autoscaling
+* Modular microservices architecture
 
 ---
 
-**Step 5 – Dashboard (Member C)**  
-- Build frontend to visualize predictions, campaign success rates, logs.  
-- Connect to API gateway endpoints.  
-👉 This is the “face” of the project — but it depends on the API being ready.
+# 17. System Summary
 
----
+The Bank Term Deposit Predictor integrates machine learning, microservices, containerisation, and Kubernetes into a complete end-to-end system.
 
-**Step 6 – Dockerize Each Service (All Members)**  
-- Write Dockerfiles for each microservice.  
-- Push images to Docker Hub.  
-- Verify each service runs correctly in isolation.  
+```text
+Customer
+   │
+   ▼
+Dashboard
+(Member C)
+   │
+   ▼
+API Gateway
+(Member B)
+   │
+   ├──────────────► AI Inference
+   │                (Member A)
+   │                     │
+   │                     ▼
+   │                 Prediction
+   │
+   ├──────────────► Database Service
+   │                (Member D)
+   │                     │
+   │                     ▼
+   │                 PostgreSQL
+   │
+   └──────────────► Monitoring Service
+                    (Member D)
+                         │
+                         ▼
+                    Logs & Metrics
+```
 
----
-
-**Step 7 – Kubernetes Deployment (All Members)**  
-- Write YAML manifests for each service.  
-- Deploy on Kubernetes cluster.  
-- Test scaling (e.g., inference service under load).  
-
----
-
-### 🔑 Key Point
-Start with **model development (Step 2)** because everything else (API, DB, dashboard) depends on having predictions to work with. Then move to **database setup**, followed by **API gateway**, and finally **dashboard**. Docker + Kubernetes come last once all services are working locally.
-
----
-
+The architecture separates responsibilities across independent services while allowing the components to communicate through well-defined APIs. Docker Compose provides a convenient local development environment, while Kubernetes and HPA provide the scalability and resilience required for production-style deployment.

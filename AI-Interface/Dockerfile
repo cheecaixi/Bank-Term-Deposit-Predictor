@@ -6,9 +6,8 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY cleaning.py .
 COPY config.py .
-COPY features.py .
+COPY training ./training
 COPY models ./models
 COPY inference ./inference
 

@@ -9,8 +9,24 @@ metadata:
 
 spec:
   # Number of Dashboard pod replicas to run.
-  # 3 pods provide better availability and allow traffic to be distributed.
   replicas: 3
+
+  # Keep the last 5 old ReplicaSets for rollback if needed.
+  revisionHistoryLimit: 5
+
+  # A pod must remain ready for 10 seconds before it is considered available.
+  minReadySeconds: 10
+
+  # Update pods gradually instead of stopping all pods at once.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+
+      # Maximum number of extra pods allowed during an update.
+      maxSurge: 1
+
+      # Maximum number of unavailable pods during an update.
+      maxUnavailable: 0
 
   # Defines which pods belong to this Deployment.
   selector:
@@ -40,7 +56,6 @@ spec:
           # Environment variables passed into the container.
           env:
             - # URL of the API Gateway.
-              # The actual value is stored in the ConfigMap.
               name: GATEWAY_URL
 
               valueFrom:
@@ -67,8 +82,7 @@ spec:
               # Maximum memory the pod can use.
               memory: "512Mi"
 
-          # Readiness probe checks whether the pod is ready
-          # to receive traffic.
+          # Readiness probe checks whether the pod is ready to receive traffic.
           readinessProbe:
             httpGet:
               # Streamlit root page is used as the health endpoint.

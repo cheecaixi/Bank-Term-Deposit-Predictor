@@ -1,4 +1,3 @@
-# Standard library and framework imports used by the gateway.
 import time
 from typing import Optional, Literal
 from fastapi import FastAPI, HTTPException, status, Request
@@ -8,23 +7,23 @@ import httpx
 
 from app.config import settings
 
-# Create the single FastAPI application served by Uvicorn.
+# Initialize FastAPI Application[cite: 8]
 app = FastAPI(
     title="Bank Marketing API Gateway",
     description="Central API Gateway orchestrating Member A (AI Inference), Member C (Dashboard), and Member D (Database/Monitoring).",
     version="1.0.0"
 )
 
-# Allow the local dashboard origin to call the gateway from a browser.
+# Enable CORS for Member C's Dashboard / Frontend[cite: 8]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501"],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Resolve backend addresses once when the application starts.
+# Load Microservice URLs from shared config[cite: 7, 8]
 INFERENCE_URL = settings.INFERENCE_SERVICE_URL
 DATABASE_URL = settings.DATABASE_SERVICE_URL
 MONITORING_URL = settings.MONITORING_SERVICE_URL
@@ -36,14 +35,13 @@ TIMEOUT_SECONDS = settings.TIMEOUT_SECONDS
 # ----------------------------------------------------
 @app.middleware("http")
 async def log_requests_to_monitoring(request: Request, call_next):
-    # Measure the complete request lifecycle, including downstream calls.
     start_time = time.time()
     
     response = await call_next(request)
     
     process_time_seconds = time.time() - start_time
     
-    # Avoid sending routine liveness and root requests to monitoring.
+    # Filter out noisy root and health check logs
     if request.url.path not in ["/health", "/"]:
         log_payload = {
             "endpoint": request.url.path,
@@ -67,10 +65,9 @@ async def log_requests_to_monitoring(request: Request, call_next):
 
 
 # ----------------------------------------------------
-# Pydantic schemas validate and document request payloads at the API boundary.
+# PYDANTIC SCHEMAS FOR DATA VALIDATION[cite: 8]
 # ----------------------------------------------------
 class CustomerPredictModel(BaseModel):
-    # Customer and campaign fields required by the prediction workflow.
     phone_number: str = Field(..., pattern=r"^\d{8}$", example="91234567")
     age: int = Field(..., example=35)
     job: Literal[
@@ -97,12 +94,12 @@ class CustomerPredictModel(BaseModel):
     batch_id: Optional[int] = Field(None, gt=0, example=1)
 
 class BatchUploadModel(BaseModel):
-    # Metadata required when registering a batch upload.
-    file_name: str = Field(..., example="bank_customers_august.csv")
-    total_records: int = Field(..., gt=0, example=50)
+    file_name: Optional[str] = Field(None, example="bank_customers_august.csv")
+    total_records: Optional[int] = Field(None, gt=0, example=50)
+    file_hash: Optional[str] = Field(None, example="a1b2c3d4e5f6...")
+    records: Optional[list] = Field(default=[], example=[])
 
 class CustomerUpdateModel(BaseModel):
-    # Optional fields allow partial customer updates.
     phone_number: Optional[str] = Field(None, pattern=r"^\d{8}$", example="91234567")
     age: Optional[int] = Field(None, example=36)
     job: Optional[Literal[
@@ -124,7 +121,6 @@ class CustomerUpdateModel(BaseModel):
 # ----------------------------------------------------
 @app.get("/", tags=["Health"])
 def read_root():
-    # Provide a simple human-readable gateway status response.
     return {
         "message": "Bank Marketing API Gateway is running!",
         "docs": "Visit /docs for interactive Swagger UI documentation."
@@ -132,7 +128,6 @@ def read_root():
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    # Used by Docker/Kubernetes probes to check gateway availability.
     return {"status": "healthy", "service": "api-gateway"}
 
 
@@ -141,7 +136,6 @@ def health_check():
 # ----------------------------------------------------
 @app.post("/api/predict", tags=["Predictions"])
 async def predict_subscription(customer_data: CustomerPredictModel):
-    # Orchestrate prediction, customer persistence, campaign history, and results.
     async with httpx.AsyncClient() as client:
         payload = customer_data.model_dump()
         
@@ -152,7 +146,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
             if field not in ("phone_number", "batch_id")
         }
 
-        # Step A: request a prediction from the AI Inference service.
+        # Step A: Request prediction from Member A (AI Inference)[cite: 8]
         try:
             inference_response = await client.post(
                 f"{INFERENCE_URL}/predict",
@@ -172,7 +166,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                 detail=f"Member A (AI Inference Service) unreachable: {exc}"
             )
 
-        # Step B: persist customer, campaign, and prediction data in the database service.
+        # Step B: Persist customer, campaign, and prediction data to Member D[cite: 8]
         try:
             customer_payload = {
                 field: payload[field]
@@ -209,7 +203,7 @@ async def predict_subscription(customer_data: CustomerPredictModel):
                     )
                 customer_id = customer["customer_id"]
 
-                # Refresh the existing customer's details before recording this prediction.
+                # Forward updated demographic data and batch_id to Member D[cite: 8, 29]
                 await client.put(
                     f"{DATABASE_URL}/customers/{customer_id}",
                     json=customer_payload,
@@ -263,16 +257,53 @@ async def predict_subscription(customer_data: CustomerPredictModel):
 # ----------------------------------------------------
 # 3. BATCH UPLOADS ENDPOINTS (FORWARD TO MEMBER D)[cite: 29]
 # ----------------------------------------------------
-@app.post("/api/batch-uploads", tags=["Batch Uploads"])
-async def create_batch_upload(batch: BatchUploadModel):
+@app.get("/api/batch-uploads/check/{file_hash}", tags=["Batch Uploads"])
+@app.get("/api/batch-uploads/{file_hash}", tags=["Batch Uploads"])
+async def check_batch_upload_by_hash(file_hash: str):
     """
-    Register a new batch upload record in Member D.[cite: 29]
+    FIXES 404: Check if a batch upload exists using its SHA-256 file hash.
     """
     async with httpx.AsyncClient() as client:
         try:
+            response = await client.get(
+                f"{DATABASE_URL}/batch-uploads/check/{file_hash}",
+                timeout=TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return {"exists": False, "file_hash": file_hash}
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=f"Member D (Database Service) error: {exc.response.text}"
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Member D (Database Service) unreachable: {exc}"
+            )
+
+@app.post("/api/batch-uploads", tags=["Batch Uploads"])
+async def create_batch_upload(batch: BatchUploadModel):
+    """
+    FIXES 422: Register a new batch upload record in Member D.
+    Automatically handles payloads containing file_hash or direct records list.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            payload = batch.model_dump(exclude_none=True)
+            
+            # Auto-populate metadata defaults if records are supplied directly
+            if "records" in payload and payload["records"]:
+                if "total_records" not in payload:
+                    payload["total_records"] = len(payload["records"])
+                if "file_name" not in payload:
+                    payload["file_name"] = "batch_upload.csv"
+
             response = await client.post(
                 f"{DATABASE_URL}/batch-uploads",
-                json=batch.model_dump(),
+                json=payload,
                 timeout=TIMEOUT_SECONDS
             )
             response.raise_for_status()
@@ -287,7 +318,6 @@ async def create_batch_upload(batch: BatchUploadModel):
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Member D (Database Service) unreachable: {exc}"
             )
-
 
 @app.get("/api/batch-uploads/{batch_id}/customers", tags=["Batch Uploads"])
 async def get_customers_by_batch(batch_id: int):
@@ -344,7 +374,6 @@ async def get_results_by_batch(batch_id: int):
 # ----------------------------------------------------
 @app.get("/api/results", tags=["Analytics"])
 async def fetch_historical_results():
-    # Forward requests for stored prediction history to the database service.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -493,7 +522,6 @@ async def delete_customer(customer_id: int):
 # ----------------------------------------------------
 @app.get("/api/logs", tags=["Monitoring"], summary="Get detailed log history")
 async def fetch_system_logs():
-    # Return request logs collected by the monitoring service.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -520,7 +548,6 @@ async def fetch_system_logs():
     summary="Get current health of all microservices"
 )
 async def fetch_monitoring_status():
-    # Return the current health status reported by monitoring.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -549,7 +576,6 @@ async def fetch_monitoring_status():
     summary="Get aggregated monitoring metrics"
 )
 async def fetch_monitoring_metrics():
-    # Return aggregated performance metrics reported by monitoring.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
