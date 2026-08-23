@@ -75,29 +75,29 @@ spec:
               port: http  # Streamlit port
 
             # Wait 10 seconds after startup before checking
-            initialDelaySeconds: 10  
+            initialDelaySeconds: 10
 
             # Check readiness every 10 seconds
-            periodSeconds: 10 
+            periodSeconds: 10
 
             # Each health check must receive a response within 5 seconds
-            timeoutSeconds: 5 
-            
+            timeoutSeconds: 5
+
             # Kubernetes allows up to 3 consecutive failed check before the probe is considered failed
-            failureThreshold: 3 
+            failureThreshold: 3
 
             # Only 1 successful check is required for the probe to be considered successful
-            successThreshold: 1 
+            successThreshold: 1
 
-          # Liveness probe checks whether the container is still running correctly 
+          # Liveness probe checks whether the container is still running correctly
           # If it repeatedly fails, Kubernetes can restart it
           livenessProbe:
             httpGet:
               path: /
               port: http
 
-            initialDelaySeconds: 30 
-            periodSeconds: 20  
+            initialDelaySeconds: 30
+            periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
             successThreshold: 1

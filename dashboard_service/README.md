@@ -68,7 +68,7 @@ API Gateway :8080
         ├──► AI Inference Service
         ├──► Database Service
         └──► Monitoring Service
-```        
+```
 ---
 
 ## Microservice
@@ -100,7 +100,7 @@ dashboard_service/
     ├── dashboard_deployment.yaml
     ├── dashboard_service.yaml
     ├── configmap.yaml
-    └── dashboard_hpa.yaml   
+    └── dashboard_hpa.yaml
 ```
 
 ## Requirements
@@ -109,7 +109,7 @@ Install the required Python dependencies:
 
 ```bash
 cd dashboard_service
-pip install -r requirements.txt    
+pip install -r requirements.txt
 ```
 
 ## Environment Configuration
