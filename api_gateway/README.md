@@ -104,7 +104,6 @@ docker run -p 8080:8080 api-gateway:v1
 
 ```bash
 kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/secret.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/hpa.yaml
