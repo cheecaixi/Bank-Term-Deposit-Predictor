@@ -10,6 +10,10 @@ DATABASE_SERVICE_URL = os.getenv(
     "DATABASE_SERVICE_URL",
     "http://localhost:8000"
 )
+DASHBOARD_SERVICE_URL = os.getenv(
+    "DASHBOARD_SERVICE_URL",
+    "http://localhost:8501"
+)
 MONITORING_DATABASE_PATH = os.getenv(
     "MONITORING_DATABASE_PATH",
     "monitoring.db"
@@ -32,4 +36,9 @@ MONITORED_SERVICES = {
     "ai-interface": AI_SERVICE_URL,
     "api-gateway": GATEWAY_SERVICE_URL,
     "database-service": DATABASE_SERVICE_URL,
+    "dashboard-service": DASHBOARD_SERVICE_URL,
+}
+
+SERVICE_HEALTH_PATHS = {
+    "dashboard-service": "/_stcore/health",
 }
