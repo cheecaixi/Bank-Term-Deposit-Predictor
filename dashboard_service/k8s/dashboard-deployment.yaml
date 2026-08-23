@@ -1,115 +1,103 @@
-# Kubernetes Deployment
-# Manages the Dashboard application pods and keeps the desired number running.
+# Dashboard Deployment
+# Manages the Streamlit Dashboard pods and maintains the desired number of replicas
+
 apiVersion: apps/v1
 kind: Deployment
 
 metadata:
-  # Name of the Deployment
   name: dashboard
 
 spec:
-  # Number of Dashboard pod replicas to run.
   replicas: 3
+  revisionHistoryLimit: 5   # Keep the last five ReplicaSets available for rollback
+  minReadySeconds: 10       # A pod must remain ready for 10 seconds before Kubernetes considers it available
 
-  # Keep the last 5 old ReplicaSets for rollback if needed.
-  revisionHistoryLimit: 5
-
-  # A pod must remain ready for 10 seconds before it is considered available.
-  minReadySeconds: 10
-
-  # Update pods gradually instead of stopping all pods at once.
   strategy:
     type: RollingUpdate
     rollingUpdate:
 
-      # Maximum number of extra pods allowed during an update.
-      maxSurge: 1
+      maxSurge: 1         # Allow one additional pod during an update
+      maxUnavailable: 0   # Ensure all existing available pods remain available
 
-      # Maximum number of unavailable pods during an update.
-      maxUnavailable: 0
-
-  # Defines which pods belong to this Deployment.
+  # Selector identifying the Dashboard pods managed by this Deployment
   selector:
     matchLabels:
       app: dashboard
 
-  # Template used to create each Dashboard pod.
   template:
     metadata:
-      # Label assigned to each Dashboard pod.
-      # This label is also used by the Service to find the pods.
+      # Must match both the Deployment selector and the Dashboard Service selector
       labels:
         app: dashboard
 
     spec:
       containers:
-        - # Name of the container inside the pod.
           name: dashboard
-
-          # Docker image used to create the Dashboard container.
           image: cheecaixi/dashboard:latest
 
-          ports:
-            # Streamlit Dashboard runs on port 8501.
-            - containerPort: 8501
+          # Always check the registry for the latest image
+          imagePullPolicy: Always
 
-          # Environment variables passed into the container.
+          ports:
+            - name: http
+              containerPort: 8501
+              protocol: TCP
+
+          # API Gateway configuration
           env:
-            - # URL of the API Gateway.
               name: GATEWAY_URL
 
               valueFrom:
                 configMapKeyRef:
-                  # Name of the ConfigMap containing the gateway URL.
                   name: dashboard-config
-
-                  # Key inside the ConfigMap.
                   key: GATEWAY_URL
 
-          # CPU and memory resources allocated to each Dashboard pod.
+          # Resource requests and limits for each Dashboard pod
           resources:
             requests:
-              # Minimum CPU requested by the pod.
+              # Minimum CPU requested by the pod
               cpu: "100m"
 
-              # Minimum memory requested by the pod.
+              # Minimum memory requested by the pod
               memory: "128Mi"
 
             limits:
-              # Maximum CPU the pod can use.
+              # Maximum CPU the pod can use
               cpu: "500m"
 
-              # Maximum memory the pod can use.
+              # Maximum memory the pod can use
               memory: "512Mi"
 
-          # Readiness probe checks whether the pod is ready to receive traffic.
+          # Readiness probe checks whether the pod is ready to receive traffic
           readinessProbe:
             httpGet:
-              # Streamlit root page is used as the health endpoint.
-              path: /
+              path: /     # Streamlit root page
+              port: http  # Streamlit port
 
-              # Streamlit port.
-              port: 8501
+            # Wait 10 seconds after startup before checking
+            initialDelaySeconds: 10  
 
-            # Wait 10 seconds after startup before checking.
-            initialDelaySeconds: 10
+            # Check readiness every 10 seconds
+            periodSeconds: 10 
 
-            # Check readiness every 10 seconds.
-            periodSeconds: 10
+            # Each health check must receive a response within 5 seconds
+            timeoutSeconds: 5 
+            
+            # Kubernetes allows up to 3 consecutive failed check before the probe is considered failed
+            failureThreshold: 3 
 
-          # Liveness probe checks whether the container is still running
-          # correctly. If it repeatedly fails, Kubernetes can restart it.
+            # Only 1 successful check is required for the probe to be considered successful
+            successThreshold: 1 
+
+          # Liveness probe checks whether the container is still running correctly 
+          # If it repeatedly fails, Kubernetes can restart it
           livenessProbe:
             httpGet:
-              # Streamlit root page.
               path: /
+              port: http
 
-              # Streamlit port.
-              port: 8501
-
-            # Wait 30 seconds after startup before checking.
-            # This gives Streamlit enough time to start.
-            initialDelaySeconds: 30
-
-            # Check liveness every 20 seconds.
-            periodSeconds: 20
+            initialDelaySeconds: 30 
+            periodSeconds: 20  
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1

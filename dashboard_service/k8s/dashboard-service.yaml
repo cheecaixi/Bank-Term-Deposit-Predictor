@@ -1,3 +1,6 @@
+# Dashboard Service
+# Exposes the Streamlit Dashboard within the Kubernetes cluster and externally through a NodePort
+
 apiVersion: v1
 kind: Service
 
@@ -5,13 +8,22 @@ metadata:
   name: dashboard-service
 
 spec:
+  # NodePort allows the dashboard to be accessed externally through the Minikube node IP and assigned NodePort
   type: NodePort
 
   selector:
-    app: dashboard-service
+    # Routes traffic to Dashboard pods matching this label
+    app: dashboard
 
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
+
+       # Service port exposed inside the Kubernetes cluster
       port: 8501
+
+      # Port on which the Streamlit container is listening
       targetPort: 8501
+
+      # External port exposed by the Minikube node
       nodePort: 30085
