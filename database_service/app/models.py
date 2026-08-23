@@ -15,62 +15,7 @@ from app.database import Base
 
 
 # ============================================================
-# 1. HISTORICAL DATA
-# ============================================================
-
-class HistoricalData(Base):
-    __tablename__ = "historical_data"
-
-    historical_id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
-    # Customer information
-    age = Column(Integer, nullable=False)
-    job = Column(String(50), nullable=False)
-    marital = Column(String(30), nullable=False)
-    education = Column(String(50), nullable=False)
-
-    default = Column(String(10), nullable=False)
-
-    balance = Column(Float, nullable=False)
-
-    housing = Column(String(10), nullable=False)
-    loan = Column(String(10), nullable=False)
-
-    # Campaign information
-    contact = Column(String(30), nullable=False)
-    day = Column(Integer, nullable=False)
-    month = Column(String(20), nullable=False)
-
-    campaign = Column(Integer, nullable=False)
-    pdays = Column(Integer, nullable=False)
-    previous = Column(Integer, nullable=False)
-
-    poutcome = Column(String(30), nullable=False)
-
-    # Original actual result from dataset
-    actual_subscription = Column(
-        String(10),
-        nullable=False
-    )
-
-    # Student A's model prediction
-    predicted_subscription = Column(
-        String(10),
-        nullable=True
-    )
-
-    prediction_probability = Column(
-        Float,
-        nullable=True
-    )
-
-
-# ============================================================
-# 2. BATCH UPLOADS
+# 1. BATCH UPLOADS
 # ============================================================
 
 class BatchUpload(Base):
