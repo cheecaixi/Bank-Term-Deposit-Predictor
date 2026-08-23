@@ -586,7 +586,6 @@ def get_batch(
 # ============================================================
 # GET CUSTOMERS FROM SPECIFIC BATCH
 # ============================================================
-
 @router.get(
     "/batch-uploads/{batch_id}/customers",
     tags=["Batch Upload"]
@@ -596,15 +595,70 @@ def get_batch_customers(
     db: Session = Depends(get_db)
 ):
 
-    customers = (
-        db.query(Customer)
+    batch = (
+        db.query(BatchUpload)
+        .filter(
+            BatchUpload.batch_id == batch_id
+        )
+        .first()
+    )
+
+    if batch is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Batch not found"
+        )
+
+    results = (
+        db.query(
+            Customer,
+            CampaignHistory
+        )
+        .join(
+            CampaignHistory,
+            Customer.customer_id
+            == CampaignHistory.customer_id
+        )
         .filter(
             Customer.batch_id == batch_id
         )
         .all()
     )
 
-    return customers
+    response = []
+
+    for customer, campaign in results:
+
+        response.append({
+
+            # Identification
+            "customer_id": customer.customer_id,
+            "phone_number": customer.phone_number,
+            "batch_id": customer.batch_id,
+
+            # 15 prediction features
+            "age": customer.age,
+            "job": customer.job,
+            "marital": customer.marital,
+            "education": customer.education,
+            "default": customer.default,
+            "balance": customer.balance,
+            "housing": customer.housing,
+            "loan": customer.loan,
+
+            "contact": campaign.contact,
+            "day": campaign.day,
+            "month": campaign.month,
+            "campaign": campaign.campaign,
+            "pdays": campaign.pdays,
+            "previous": campaign.previous,
+            "poutcome": campaign.poutcome,
+
+            # Status
+            "prediction_status": customer.prediction_status
+        })
+
+    return response
 
 
 # ============================================================
