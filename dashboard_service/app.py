@@ -49,6 +49,54 @@ if "last_batch_results" not in st.session_state:
     st.session_state.last_batch_results = None #Stores the latest batch prediction results so they remain available after Streamlit reruns
 
 # ---------------------------------------------------------------
+# DEFAULT CUSTOMER FORM VALUES
+# ---------------------------------------------------------------
+if "age" not in st.session_state:
+    st.session_state.age = 35
+
+if "job" not in st.session_state:
+    st.session_state.job = JOB_OPTIONS[0]
+
+if "marital" not in st.session_state:
+    st.session_state.marital = MARITAL_OPTIONS[0]
+
+if "education" not in st.session_state:
+    st.session_state.education = EDUCATION_OPTIONS[0]
+
+if "default" not in st.session_state:
+    st.session_state.default = YES_NO_OPTIONS[0]
+
+if "balance" not in st.session_state:
+    st.session_state.balance = 1000.0
+
+if "housing" not in st.session_state:
+    st.session_state.housing = YES_NO_OPTIONS[0]
+
+if "loan" not in st.session_state:
+    st.session_state.loan = YES_NO_OPTIONS[0]
+
+if "contact" not in st.session_state:
+    st.session_state.contact = CONTACT_OPTIONS[0]
+
+if "day" not in st.session_state:
+    st.session_state.day = 15
+
+if "month" not in st.session_state:
+    st.session_state.month = MONTH_OPTIONS[0]
+
+if "campaign" not in st.session_state:
+    st.session_state.campaign = 1
+
+if "pdays" not in st.session_state:
+    st.session_state.pdays = -1
+
+if "previous" not in st.session_state:
+    st.session_state.previous = 0
+
+if "poutcome" not in st.session_state:
+    st.session_state.poutcome = POUTCOME_OPTIONS[0]
+
+# ---------------------------------------------------------------
 # API CALLS -- matches Member B's FastAPI gateway 
 # ---------------------------------------------------------------
 def call_predict_api(record: dict) -> dict:
@@ -72,26 +120,42 @@ def get_all_batches() -> list:
 
 def search_customer_by_phone(phone_number: str):
     """
-    Search for an existing customer using their phone number.
+    Retrieve an existing customer and ALL 15 prediction features
+    using only the phone number.
 
-    The Dashboard sends the request to Member B (API Gateway).
-    Member B forwards the request to Member D (Database Service).
-
-    Returns:
-        dict: Customer information if the customer is found.
-        None: If no customer with the phone number exists.
+    This does NOT access the batch CSV/dataset.
+    The API Gateway retrieves the customer from the database.
     """
+
     url = (
         f"{st.session_state.gateway_url}"
         f"/api/customers/phone/{phone_number}"
     )
-    response = requests.get(url,timeout=10)
+
+    response = requests.get(url, timeout=10)
 
     if response.status_code == 404:
         return None
 
     response.raise_for_status()
-    return response.json()
+
+    customer = response.json()
+
+    # Make sure the database/API returned all 15 model features.
+    missing_features = [
+        field
+        for field in FEATURE_FIELDS
+        if field not in customer or customer[field] is None
+    ]
+
+    if missing_features:
+        raise ValueError(
+            "Customer was found, but the API response is missing "
+            "the following features: "
+            + ", ".join(missing_features)
+        )
+
+    return customer
 
 def get_option_index(options, value):
     try:
@@ -504,6 +568,23 @@ with tab1:
                         st.session_state.found_customer = None
                         st.session_state.customer_id = None
 
+                        st.session_state.age = 35
+                        st.session_state.job = JOB_OPTIONS[0]
+                        st.session_state.marital = MARITAL_OPTIONS[0]
+                        st.session_state.education = EDUCATION_OPTIONS[0]
+                        st.session_state.default = YES_NO_OPTIONS[0]
+                        st.session_state.balance = 1000.0
+                        st.session_state.balance_sgd = 1000.0 * 1.48
+                        st.session_state.housing = YES_NO_OPTIONS[0]
+                        st.session_state.loan = YES_NO_OPTIONS[0]
+                        st.session_state.contact = CONTACT_OPTIONS[0]
+                        st.session_state.day = 15
+                        st.session_state.month = MONTH_OPTIONS[0]
+                        st.session_state.campaign = 1
+                        st.session_state.pdays = -1
+                        st.session_state.previous = 0
+                        st.session_state.poutcome = POUTCOME_OPTIONS[0]
+
                         st.info(
                             "ℹ️ No existing customer was found. " \
                             "You can enter the customer information manually below."
@@ -511,15 +592,36 @@ with tab1:
 
                     else:
 
+                        # ---------------------------------------------------------
+                        # Store the complete customer record
+                        # ---------------------------------------------------------
                         st.session_state.found_customer = customer
-                        st.session_state.customer_id = (
-                            customer["customer_id"]
-                        )
+                        st.session_state.customer_id = customer["customer_id"]
+
+                        # ---------------------------------------------------------
+                        # Load ALL 15 model features into widget state
+                        # ---------------------------------------------------------
+                        st.session_state.age = int(customer["age"])
+                        st.session_state.job = str(customer["job"])
+                        st.session_state.marital = str(customer["marital"])
+                        st.session_state.education = str(customer["education"])
+                        st.session_state.default = str(customer["default"])
+
+                        st.session_state.balance = float(customer["balance"])
+                        st.session_state.housing = str(customer["housing"])
+                        st.session_state.loan = str(customer["loan"])
+
+                        st.session_state.contact = str(customer["contact"])
+                        st.session_state.day = int(customer["day"])
+                        st.session_state.month = str(customer["month"])
+                        st.session_state.campaign = int(customer["campaign"])
+                        st.session_state.pdays = int(customer["pdays"])
+                        st.session_state.previous = int(customer["previous"])
+                        st.session_state.poutcome = str(customer["poutcome"])
 
                         st.success(
                             f"✅ Existing customer found — "
-                            f"Customer ID: "
-                            f"{customer['customer_id']}"
+                            f"Customer ID: {customer['customer_id']}"
                         )
 
                 except Exception as e:
@@ -637,7 +739,7 @@ with tab1:
     else:
 
         # ---------------------------------------------------------
-        # Customer / demographic information
+        # New customer defaults
         # ---------------------------------------------------------
         default_age = 35
         default_job = JOB_OPTIONS[0]
@@ -645,16 +747,10 @@ with tab1:
         default_education = EDUCATION_OPTIONS[0]
         default_default = YES_NO_OPTIONS[0]
 
-        # ---------------------------------------------------------
-        # Financial information
-        # ---------------------------------------------------------
         default_balance = 1000.0
         default_housing = YES_NO_OPTIONS[0]
         default_loan = YES_NO_OPTIONS[0]
 
-        # ---------------------------------------------------------
-        # Campaign information
-        # ---------------------------------------------------------
         default_contact = CONTACT_OPTIONS[0]
         default_day = 15
         default_month = MONTH_OPTIONS[0]
@@ -682,7 +778,7 @@ with tab1:
                 "Age",
                 min_value=18,
                 max_value=100,
-                value=int(default_age),
+                key="age",
                 help="Customer's age in years."
             )
 
@@ -694,6 +790,7 @@ with tab1:
                     JOB_OPTIONS,
                     default_job
                 ),
+                key="job",
                 help="Customer's occupation."
             )
 
@@ -705,6 +802,7 @@ with tab1:
                     MARITAL_OPTIONS,
                     default_marital
                 ),
+                key="marital",
                 help="Customer's current marital status."
             )
 
@@ -718,6 +816,7 @@ with tab1:
                     EDUCATION_OPTIONS,
                     default_education
                 ),
+                key="education",
                 help="Customer's highest level of education."
             )
 
@@ -729,6 +828,7 @@ with tab1:
                     YES_NO_OPTIONS,
                     default_default
                 ),
+                key="default",
                 help=(
                     "Whether the customer fail to repay borrowed money."
                 )
@@ -774,6 +874,7 @@ with tab1:
                     YES_NO_OPTIONS,
                     default_housing
                 ),
+                key="housing",
                 help=(
                     "Whether the customer has "
                     "a housing loan."
@@ -788,6 +889,7 @@ with tab1:
                     YES_NO_OPTIONS,
                     default_loan
                 ),
+                key="loan",
                 help=(
                     "Whether the customer has "
                     "a personal loan."
@@ -813,6 +915,7 @@ with tab1:
                     CONTACT_OPTIONS,
                     default_contact
                 ),
+                key="contact",
                 help=(
                     "Communication method used to "
                     "contact the customer."
@@ -825,6 +928,7 @@ with tab1:
                 min_value=1,
                 max_value=31,
                 value=int(default_day),
+                key="day",
                 help=(
                     "Day of the month when the customer "
                     "was last contacted."
@@ -839,6 +943,7 @@ with tab1:
                     MONTH_OPTIONS,
                     default_month
                 ),
+                key="month",
                 help=(
                     "Month when the customer "
                     "was last contacted."
@@ -851,7 +956,7 @@ with tab1:
             campaign = st.number_input(
                 "Contacts in Current Campaign",
                 min_value=1,
-                value=int(default_campaign),
+                key="campaign",
                 help=(
                     "Number of contacts made to this customer "
                     "during the current campaign, including "
@@ -863,7 +968,7 @@ with tab1:
             pdays = st.number_input(
                 "Days Since Previous Contact",
                 min_value=-1,
-                value=int(default_pdays),
+                key="pdays",
                 step=1,
                 help=(
                     "-1 means the customer was not contacted "
@@ -877,7 +982,7 @@ with tab1:
             previous = st.number_input(
                 "Previous Campaign Contacts",
                 min_value=0,
-                value=int(default_previous),
+                key="previous",
                 help=(
                     "Number of contacts made to this customer "
                     "before the current campaign."
@@ -894,6 +999,7 @@ with tab1:
                     POUTCOME_OPTIONS,
                     default_poutcome
                 ),
+                key="poutcome",
                 help=(
                     "Outcome of the customer's "
                     "previous marketing campaign."
