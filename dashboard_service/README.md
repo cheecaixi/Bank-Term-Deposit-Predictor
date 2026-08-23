@@ -23,19 +23,26 @@ The Dashboard consists of four main tabs:
 
 ### Tab 1 – Single Customer Prediction
 
-- Search existing customers by phone number.
-- Load, review, and edit customer information.
-- Generate a new subscription prediction.
-- Display subscription probability and campaign priority.
-- Display previous prediction probability and priority for existing customers.
+- Search for an existing customer using a phone number.
+- Load existing customer information from the database.
+- Review and edit customer information.
+- Generate a new term-deposit subscription prediction.
+- Display subscription probability.
+- Display campaign priority:
+  - 🟢 High Priority
+  - 🟡 Medium Priority
+  - 🔴 Low Priority
+- Display the previous prediction probability and priority for existing
+  customers.
 
 ### Tab 2 – Batch Prediction
 
-- Upload customer CSV files.
+- Upload a customer CSV file.
 - Process multiple customers in a batch.
-- Generate predictions and retrieve results using a batch ID.
+- Generate predictions for multiple customers.
+- Retrieve results using a batch ID.
 - Display prediction probabilities and subscription outcomes.
-- Prioritize customers based on predicted likelihood.
+- Prioritize customers based on their predicted subscription likelihood.
 
 ### Tab 3 – Results & Analytics
 
@@ -46,9 +53,9 @@ The Dashboard consists of four main tabs:
 
 ### Tab 4 – System Monitoring
 
-- View system and service health.
-- Monitor service performance.
-- Check backend operational status.
+- View system and service health information.
+- Monitor relevant service performance.
+- Check the operational status of the backend system.
 
 ---
 
