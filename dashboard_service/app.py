@@ -101,32 +101,22 @@ if "poutcome" not in st.session_state:
 # ---------------------------------------------------------------
 def call_predict_api(record: dict) -> dict:
     """
-    Send customer data to the API Gateway and return the prediction.
+    Send customer data to the API Gateway for prediction.
     """
     url = f"{st.session_state.gateway_url}/api/predict"
     response = requests.post(url, json=record, timeout=10)
     response.raise_for_status()
     return response.json()
 
-def get_all_batches() -> list:
-    """
-    Retrieve all uploaded batches from the API Gateway.
-    Used to check whether a CSV file has already been uploaded.
-    """
-    url = f"{st.session_state.gateway_url}/api/batch-uploads"
-    response = requests.get(url,timeout=10)
-    response.raise_for_status()
-    return response.json()
-
 def search_customer_by_phone(phone_number: str):
     """
-    Retrieve an existing customer and ALL 15 prediction features
-    using only the phone number.
+    Retrieve an existing customer and all 15 prediction features
+    using the customer's phone number.
 
-    This does NOT access the batch CSV/dataset.
-    The API Gateway retrieves the customer from the database.
+    The Dashboard sends the request only to the API Gateway.
+    The API Gateway retrieves the customer information from the
+    Database Service and returns the complete customer record.
     """
-
     url = (
         f"{st.session_state.gateway_url}"
         f"/api/customers/phone/{phone_number}"
@@ -141,7 +131,7 @@ def search_customer_by_phone(phone_number: str):
 
     customer = response.json()
 
-    # Make sure the database/API returned all 15 model features.
+    # Verify that all 15 model features were returned by the API
     missing_features = [
         field
         for field in FEATURE_FIELDS
@@ -158,6 +148,9 @@ def search_customer_by_phone(phone_number: str):
     return customer
 
 def get_option_index(options, value):
+    """
+    Return the index of a value within a list of options.
+    """
     try:
         return options.index(value)
     except ValueError:
@@ -166,12 +159,6 @@ def get_option_index(options, value):
 def update_customer(customer_id: int, customer_data: dict) -> dict:
     """
     Update an existing customer through the API Gateway.
-
-    The API Gateway forwards the update to the Database Service
-    using the customer's existing customer ID.
-
-    Returns:
-        Updated customer record.
     """
     url = (
         f"{st.session_state.gateway_url}"
@@ -189,7 +176,7 @@ def update_customer(customer_id: int, customer_data: dict) -> dict:
 
 def call_results_api() -> list:
     """
-    Retrieve historical prediction records through Member B.
+    Retrieve historical prediction results through the API Gateway.
     """
     url = f"{st.session_state.gateway_url}/api/results"
     response = requests.get(url, timeout=10)
@@ -202,13 +189,11 @@ def call_results_api() -> list:
 def predict_one(record: dict):
     """
     Send one manual customer prediction to the API Gateway.
-
-    Manual predictions must never be associated with a batch.
+    The API Gateway forwards the request to the Inference Service, which returns the prediction result.
     """
     try:
         manual_record = record.copy()
 
-        # IMPORTANT:
         # Prevent an existing customer's batch_id from being reused.
         manual_record["batch_id"] = None
 
@@ -228,7 +213,8 @@ def predict_one(record: dict):
 def calculate_file_hash(uploaded_file) -> str:
     """
     Calculate SHA-256 hash of the uploaded CSV file.
-    Used to identify duplicate CSV uploads.
+    The hash is used as a unique identifier for the file content 
+    and helps detect duplicate CSV uploads.
     """
     file_bytes = uploaded_file.getvalue()
     return hashlib.sha256(file_bytes).hexdigest()
@@ -236,10 +222,12 @@ def calculate_file_hash(uploaded_file) -> str:
 def create_batch_upload(file_name: str, total_records: int, file_hash: str) -> dict:
     """
     Create a new batch record through the API Gateway.
-    The request is forwarded to the Database Service,
-    which creates and returns the Batch ID.
+    The Dashboard sends the file information to the API Gateway,
+    which forwards the request to the Database Service. 
+    The Database Service creates the batch record and returns its Batch ID.
     """
     url = f"{st.session_state.gateway_url}/api/batch-uploads"
+
     response = requests.post(url, 
                              json={"file_name": file_name,
                                    "total_records": total_records,
@@ -250,8 +238,7 @@ def create_batch_upload(file_name: str, total_records: int, file_hash: str) -> d
 
 def check_existing_batch(file_hash: str):
     """
-    Check whether the uploaded CSV already exists
-    using its SHA-256 file hash.
+    Check whether the uploaded CSV already exists using its SHA-256 file hash.
     """
     url = (
         f"{st.session_state.gateway_url}"
@@ -270,9 +257,7 @@ def check_existing_batch(file_hash: str):
 def predict_many(df: pd.DataFrame,batch_id: int,progress_callback=None):
     """
     Generate predictions for all customers in a batch.
-
     All prediction requests are sent through the API Gateway.
-    Temporary connection/server errors are retried.
     """
     results = []
     total_records = len(df)
@@ -303,7 +288,7 @@ def predict_many(df: pd.DataFrame,batch_id: int,progress_callback=None):
         # ---------------------------------------------------------
         # RETRY PREDICTION REQUEST
         # ---------------------------------------------------------
-        max_retries = 3
+        max_retries = 5
         result = None
 
         for attempt in range(max_retries):
@@ -396,7 +381,6 @@ def predict_many(df: pd.DataFrame,batch_id: int,progress_callback=None):
             )
             return None
 
-        # Member B's Gateway contract uses "prediction".
         if "prediction" not in result:
             st.error(
                 f"❌ API response for row {index + 1} "
@@ -429,7 +413,7 @@ def predict_many(df: pd.DataFrame,batch_id: int,progress_callback=None):
 
 def get_batch_results(batch_id: int):
     """
-    Retrieve previously stored prediction results
+    Retrieve previously stored prediction results 
     for a specific Batch ID through the API Gateway.
     """
     url = (
@@ -450,9 +434,8 @@ with st.sidebar:
     st.session_state.gateway_url = st.text_input(
         "Gateway URL",
         value=st.session_state.gateway_url,
-        help=(
-            "Internal address of the API Gateway.")
-    )
+        help=("Internal address of the API Gateway.")
+        )
 
     if st.button(
         "🔌 Test Connection",
@@ -493,8 +476,7 @@ with st.sidebar:
 # ---------------------------------------------------------------
 st.title("💰 Bank Marketing AI Dashboard")
 st.caption(f"🟢 System operational ")
-st.write(
-    "AI-assisted customer prioritisation for term deposit campaigns.")
+st.write("AI-assisted customer prioritisation for term deposit campaigns.")
 tab1, tab2, tab3, tab4 = st.tabs(["👨‍💼 Customer Prediction", "📂 Batch Prediction", "📊 Campaign Analytics", "🖥️ System Monitoring"])
 
 # ---------------------------------------------------------------
@@ -502,14 +484,8 @@ tab1, tab2, tab3, tab4 = st.tabs(["👨‍💼 Customer Prediction", "📂 Batch
 # ---------------------------------------------------------------
 with tab1:
     st.subheader("👨‍💼 Customer Subscription Prediction")
-
-    st.write(
-        "Assess a customer's likelihood of subscribing to a term deposit."
-    )
-
-    st.info(
-        "💡 Search the customer database before entering or reviewing customer details."
-    )
+    st.write("Assess a customer's likelihood of subscribing to a term deposit.")
+    st.info("💡 Search the customer database before entering or reviewing customer details.")
 
     # =============================================================
     # 1. CUSTOMER SEARCH
@@ -522,9 +498,7 @@ with tab1:
         phone_number = st.text_input(
             "Phone Number",
             placeholder="e.g. 91234567",
-            help=(
-                "Used to identify an existing customer. It is not used by the prediction model."
-            )
+            help=("Used to identify an existing customer. It is not used by the prediction model.")
         )
 
     with search_col2:
@@ -670,8 +644,7 @@ with tab1:
     if existing_customer:
         st.caption(
             "Customer information has been loaded from the database. "
-            "You can review and edit the information before generating "
-            "a new prediction."
+            "You can review and edit the information before generating a new prediction."
         )
     else:
         st.caption(
@@ -689,86 +662,29 @@ with tab1:
         # ---------------------------------------------------------
         # Customer / demographic information
         # ---------------------------------------------------------
-        default_age = existing_customer.get(
-            "age",
-            35
-        )
-
-        default_job = existing_customer.get(
-            "job",
-            JOB_OPTIONS[0]
-        )
-
-        default_marital = existing_customer.get(
-            "marital",
-            MARITAL_OPTIONS[0]
-        )
-
-        default_education = existing_customer.get(
-            "education",
-            EDUCATION_OPTIONS[0]
-        )
-
-        default_default = existing_customer.get(
-            "default",
-            YES_NO_OPTIONS[0]
-        )
+        default_age = existing_customer.get("age", 35)
+        default_job = existing_customer.get("job", JOB_OPTIONS[0])
+        default_marital = existing_customer.get("marital", MARITAL_OPTIONS[0])
+        default_education = existing_customer.get("education", EDUCATION_OPTIONS[0])
+        default_default = existing_customer.get("default", YES_NO_OPTIONS[0])
 
         # ---------------------------------------------------------
         # Financial information
         # ---------------------------------------------------------
-        default_balance = existing_customer.get(
-            "balance",
-            1000.0
-        )
-
-        default_housing = existing_customer.get(
-            "housing",
-            YES_NO_OPTIONS[0]
-        )
-
-        default_loan = existing_customer.get(
-            "loan",
-            YES_NO_OPTIONS[0]
-        )
+        default_balance = existing_customer.get("balance", 1000.0)
+        default_housing = existing_customer.get("housing", YES_NO_OPTIONS[0])
+        default_loan = existing_customer.get("loan", YES_NO_OPTIONS[0])
 
         # ---------------------------------------------------------
         # Campaign information
         # ---------------------------------------------------------
-        default_contact = existing_customer.get(
-            "contact",
-            CONTACT_OPTIONS[0]
-        )
-
-        default_day = existing_customer.get(
-            "day",
-            15
-        )
-
-        default_month = existing_customer.get(
-            "month",
-            MONTH_OPTIONS[0]
-        )
-
-        default_campaign = existing_customer.get(
-            "campaign",
-            1
-        )
-
-        default_pdays = existing_customer.get(
-            "pdays",
-            -1
-        )
-
-        default_previous = existing_customer.get(
-            "previous",
-            0
-        )
-
-        default_poutcome = existing_customer.get(
-            "poutcome",
-            POUTCOME_OPTIONS[0]
-        )
+        default_contact = existing_customer.get("contact", CONTACT_OPTIONS[0])
+        default_day = existing_customer.get("day", 15)
+        default_month = existing_customer.get("month", MONTH_OPTIONS[0])
+        default_campaign = existing_customer.get("campaign", 1)
+        default_pdays = existing_customer.get("pdays", -1)
+        default_previous = existing_customer.get("previous", 0)
+        default_poutcome = existing_customer.get("poutcome", POUTCOME_OPTIONS[0])
 
     else:
 
@@ -1097,13 +1013,8 @@ with tab1:
             # -----------------------------------------------------
             # Update existing customer if one was found
             # -----------------------------------------------------
-            existing_customer = st.session_state.get(
-                "found_customer"
-            )
-
-            customer_id = st.session_state.get(
-                "customer_id"
-            )
+            existing_customer = st.session_state.get("found_customer")
+            customer_id = st.session_state.get("customer_id")
 
             try:
 
@@ -1118,18 +1029,13 @@ with tab1:
                             customer_data=record
                         )
 
-                    st.success(
-                        f"✅ Customer {customer_id} information "
-                        "has been updated."
-                    )
+                    st.success(f"✅ Customer {customer_id} information has been updated.")
 
                 # -------------------------------------------------
                 # Generate prediction
                 # -------------------------------------------------
-                with st.spinner(
-                    "Generating subscription prediction..."
-                ):
-
+                with st.spinner("Generating subscription prediction..."):
+                    
                     result = predict_one(record)
 
                 # -------------------------------------------------
@@ -1155,9 +1061,7 @@ with tab1:
 
                     st.divider()
 
-                    st.markdown(
-                        "### 📊 Prediction Result"
-                    )
+                    st.markdown("### 📊 Prediction Result")
 
                     # -------------------------------------------------
                     # Customer identification
@@ -1183,13 +1087,8 @@ with tab1:
 
                     with result_col2:
 
-                        st.write(
-                            "**Predicted Likelihood**"
-                        )
-
-                        st.progress(
-                            probability
-                        )
+                        st.write("**Predicted Likelihood**")
+                        st.progress(probability)
 
                         # ---------------------------------------------
                         # Campaign priority
@@ -1224,9 +1123,7 @@ with tab1:
                                 "the customer will not subscribe."
                             )
 
-                        st.write(
-                            "**Campaign Priority**"
-                        )
+                        st.write("**Campaign Priority**")
 
                         if probability >= 0.70:
                             st.success(priority)
@@ -1237,9 +1134,7 @@ with tab1:
                         else:
                             st.error(priority)
 
-                        st.write(
-                            priority_description
-                        )
+                        st.write(priority_description)
 
                     # -------------------------------------------------
                     # Prediction interpretation
@@ -1247,21 +1142,17 @@ with tab1:
                     if subscription == "Yes":
 
                         st.write(
-                            "The AI model predicts a higher likelihood "
-                            "that this customer will subscribe to the "
-                            "term deposit. The customer may therefore "
-                            "be considered a higher-priority prospect "
-                            "for the marketing campaign."
+                            "The AI model predicts a higher likelihood that this " \
+                            "customer will subscribe to the term deposit. The customer" \
+                            " may therefore be considered a higher-priority prospect for the marketing campaign."
                         )
 
                     else:
 
                         st.write(
-                            "The AI model predicts a lower likelihood "
-                            "that this customer will subscribe to the "
-                            "term deposit. The result can be considered "
-                            "when deciding how to allocate campaign "
-                            "calling resources."
+                            "The AI model predicts a lower likelihood that this customer " \
+                            "will subscribe to the term deposit. The result can be considered " \
+                            "when deciding how to allocate campaign calling resources."
                         )
 
                     # -------------------------------------------------
@@ -1320,7 +1211,7 @@ with tab1:
 
                 st.error(
                     f"❌ Unexpected error: {error}"
-                )
+)
 
     # =============================================================
     # RECENT PREDICTIONS
@@ -1329,14 +1220,8 @@ with tab1:
 
         st.divider()
 
-        st.markdown(
-            "### 🕘 Recent Predictions"
-        )
-
-        st.caption(
-            "Predictions generated during the current "
-            "dashboard session."
-        )
+        st.markdown("### 🕘 Recent Predictions")
+        st.caption("Predictions generated during the current dashboard session.")
 
         hist_df = pd.DataFrame(
             st.session_state.history[:10]
@@ -1499,9 +1384,7 @@ with tab2:
 
                 try:
 
-                    existing_batch_id = int(
-                        existing_batch["batch_id"]
-                    )
+                    existing_batch_id = int(existing_batch["batch_id"])
 
                 except (KeyError, TypeError, ValueError) as error:
 
@@ -1511,9 +1394,7 @@ with tab2:
 
                     st.stop()
 
-                st.warning(
-                    "⚠️ This CSV file has already been uploaded."
-                )
+                st.warning("⚠️ This CSV file has already been uploaded.")
 
                 st.info(
                     f"📦 Existing Batch ID: **{existing_batch_id}**\n\n"
@@ -1526,9 +1407,7 @@ with tab2:
                 # =================================================
                 try:
 
-                    with st.spinner(
-                        f"Loading Batch {existing_batch_id}..."
-                    ):
+                    with st.spinner(f"Loading Batch {existing_batch_id}..."):
 
                         existing_batch_data = (
                             get_batch_results(
@@ -1669,9 +1548,7 @@ with tab2:
                 # =================================================
                 # VALIDATE REQUIRED COLUMNS
                 # =================================================
-                REQUIRED_FIELDS = [
-                    "phone_number"
-                ] + FEATURE_FIELDS
+                REQUIRED_FIELDS = ["phone_number"] + FEATURE_FIELDS
 
                 missing_cols = [
                     column
@@ -1682,8 +1559,7 @@ with tab2:
                 if missing_cols:
 
                     st.error(
-                        "❌ The uploaded CSV is missing "
-                        "the following required columns:"
+                        "❌ The uploaded CSV is missing the following required columns:"
                     )
 
                     st.code(
@@ -1696,8 +1572,7 @@ with tab2:
                 elif df.empty:
 
                     st.error(
-                        "❌ The uploaded CSV does not contain "
-                        "any customer records."
+                        "❌ The uploaded CSV does not contain any customer records."
                     )
 
                 # =================================================
@@ -1706,8 +1581,7 @@ with tab2:
                 elif df["phone_number"].isna().any():
 
                     st.error(
-                        "❌ Some customer records do not have "
-                        "a phone number."
+                        "❌ Some customer records do not have a phone number."
                     )
 
                 elif (
@@ -1718,8 +1592,7 @@ with tab2:
                     .any()
                 ):
                     st.error(
-                        "❌ Some customer records have "
-                        "an empty phone number."
+                        "❌ Some customer records have an empty phone number."
                     )
 
                 # =================================================
@@ -1780,9 +1653,8 @@ with tab2:
                     st.markdown("### 🔮 Generate Batch Predictions")
 
                     st.write(
-                        "The system will create a new Batch ID, "
-                        "generate predictions for every customer, "
-                        "and store the results in the database."
+                        "The system will create a new Batch ID, generate predictions"
+                        "for every customer, and store the results in the database."
                     )
 
                     if st.button(
@@ -1799,9 +1671,7 @@ with tab2:
                             # =====================================
                             # CREATE BATCH
                             # =====================================
-                            with st.spinner(
-                                "Registering new batch..."
-                            ):
+                            with st.spinner("Registering new batch..."):
 
                                 batch = create_batch_upload(
                                     file_name=uploaded_file.name,
@@ -1821,8 +1691,7 @@ with tab2:
                             if "batch_id" not in batch:
 
                                 st.error(
-                                    "❌ The API response does not "
-                                    "contain a Batch ID."
+                                    "❌ The API response does not contain a Batch ID."
                                 )
 
                                 st.stop()
@@ -1925,9 +1794,7 @@ with tab2:
 
         if batch_id_input is None:
 
-            st.warning(
-                "⚠️ Please enter a Batch ID."
-            )
+            st.warning("⚠️ Please enter a Batch ID.")
 
         else:
             batch_id = int(batch_id_input)
@@ -1944,8 +1811,7 @@ with tab2:
 
                 if not isinstance(batch_data, dict):
                     st.error(
-                        "❌ Invalid response received from "
-                        "the API Gateway."
+                        "❌ Invalid response received from the API Gateway."
                     )
 
                 else:
@@ -1956,8 +1822,7 @@ with tab2:
 
                     if not results:
                         st.warning(
-                            f"⚠️ Batch {batch_id} was found, "
-                            "but no prediction results are available."
+                            f"⚠️ Batch {batch_id} was found, but no prediction results are available."
                         )
 
                     else:
@@ -2287,11 +2152,10 @@ with tab2:
         # =========================================================
         # DISPLAY RESULTS
         # =========================================================
-        st.dataframe(
-            display_df,
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(display_df,
+                     use_container_width=True,
+                     hide_index=True
+                     )
 
         # =========================================================
         # PRIORITY EXPLANATION
@@ -2307,19 +2171,17 @@ with tab2:
             )
 
             st.caption(
-                "Strong likelihood of subscription. "
-                "Prioritise for campaign follow-up."
+                "Strong likelihood of subscription. Prioritise for campaign follow-up."
             )
 
         with priority_col2:
 
             st.warning(
-                "🟡 **Medium Priority — 60–69%**"
+                "🟡 **Medium Priority — 60-69%**"
             )
 
             st.caption(
-                "Moderate likelihood of subscription. "
-                "Consider for campaign follow-up."
+                "Moderate likelihood of subscription. Consider for campaign follow-up."
             )
 
         with priority_col3:
@@ -2338,9 +2200,7 @@ with tab2:
         # =========================================================
         st.divider()
 
-        st.markdown(
-            "### 📥 Export Results"
-        )
+        st.markdown("### 📥 Export Results")
 
         st.write(
             "Download the current batch prediction results "
@@ -2387,12 +2247,9 @@ with tab3:
     # =============================================================
     # FETCH HISTORICAL RESULTS
     # =============================================================
-    with st.spinner(
-        "Loading campaign analytics..."
-    ):
+    with st.spinner("Loading campaign analytics..."):
 
         try:
-
             raw_results = call_results_api()
 
             records_df = pd.DataFrame(
@@ -2457,10 +2314,9 @@ with tab3:
 
                     return False
 
-                value_str = (
-                    str(value)
-                    .strip()
-                    .lower()
+                value_str = (str(value)
+                             .strip()
+                             .lower()
                 )
 
                 return value_str in [
@@ -2531,9 +2387,7 @@ with tab3:
         # =========================================================
         # KPI SUMMARY
         # =========================================================
-        st.markdown(
-            "### 📊 Campaign Summary"
-        )
+        st.markdown("### 📊 Campaign Summary")
 
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
@@ -2668,13 +2522,10 @@ with tab3:
         # =========================================================
         if "probability" in records_df.columns:
 
-            st.markdown(
-                "### 🎯 Prediction Probability Distribution"
-            )
+            st.markdown("### 🎯 Prediction Probability Distribution")
 
             st.caption(
-                "Distribution of subscription probabilities "
-                "generated by the AI model."
+                "Distribution of subscription probabilities generated by the AI model."
             )
 
             probability_df = (
@@ -2823,9 +2674,7 @@ with tab4:
         )
 
     with col_status:
-        st.info(
-            "Monitoring data is retrieved through the API Gateway."
-        )
+        st.info("Monitoring data is retrieved through the API Gateway.")
 
     # --------------------------------------------------------
     # SERVICE STATUS
@@ -2905,9 +2754,7 @@ with tab4:
                         )
 
     else:
-        st.warning(
-            "Unable to retrieve service status."
-        )
+        st.warning("Unable to retrieve service status.")
 
     st.divider()
 
@@ -3000,10 +2847,7 @@ with tab4:
         if by_service:
 
             st.subheader("📈 Metrics by Service")
-
-            service_df = pd.DataFrame(
-                by_service
-            )
+            service_df = pd.DataFrame(by_service)
 
             st.dataframe(
                 service_df,
@@ -3011,9 +2855,7 @@ with tab4:
                 hide_index=True
             )
     else:
-        st.warning(
-            "Unable to retrieve system metrics."
-        )
+        st.warning("Unable to retrieve system metrics.")
 
     st.divider()
 
@@ -3030,15 +2872,11 @@ with tab4:
 
         if isinstance(logs_data, list):
 
-            logs_df = pd.DataFrame(
-                logs_data
-            )
+            logs_df = pd.DataFrame(logs_data)
 
         else:
 
-            logs_df = pd.DataFrame(
-                logs_data
-            )
+            logs_df = pd.DataFrame(logs_data)
 
         if not logs_df.empty:
 
