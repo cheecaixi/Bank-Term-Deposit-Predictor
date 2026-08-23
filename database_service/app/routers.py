@@ -637,7 +637,13 @@ def get_batch_results(
     results = (
         db.query(
             Customer,
+            CampaignHistory,
             Prediction
+        )
+        .join(
+            CampaignHistory,
+            Customer.customer_id
+            == CampaignHistory.customer_id
         )
         .join(
             Prediction,
@@ -652,19 +658,34 @@ def get_batch_results(
 
     response = []
 
-    for customer, prediction in results:
+    for customer, campaign, prediction in results:
 
         response.append({
+            # Identification
             "customer_id": customer.customer_id,
             "phone_number": customer.phone_number,
 
+            # 15 prediction features
             "age": customer.age,
             "job": customer.job,
+            "marital": customer.marital,
+            "education": customer.education,
+            "default": customer.default,
+            "balance": customer.balance,
+            "housing": customer.housing,
+            "loan": customer.loan,
 
+            "contact": campaign.contact,
+            "day": campaign.day,
+            "month": campaign.month,
+            "campaign": campaign.campaign,
+            "pdays": campaign.pdays,
+            "previous": campaign.previous,
+            "poutcome": campaign.poutcome,
+
+            # Prediction result
             "prediction": prediction.prediction,
-
             "probability": prediction.probability,
-
             "predicted_at": prediction.predicted_at
         })
 
