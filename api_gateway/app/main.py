@@ -100,21 +100,91 @@ class BatchUploadModel(BaseModel):
     records: Optional[list] = Field(default=[], example=[])
 
 class CustomerUpdateModel(BaseModel):
-    phone_number: Optional[str] = Field(None, pattern=r"^\d{8}$", example="91234567")
+    phone_number: Optional[str] = Field(
+        None,
+        pattern=r"^\d{8}$",
+        example="91234567"
+    )
+
+    # -------------------------
+    # CUSTOMER FEATURES
+    # -------------------------
+
     age: Optional[int] = Field(None, example=36)
+
     job: Optional[Literal[
         "admin.", "blue-collar", "entrepreneur", "housemaid",
         "management", "retired", "self-employed", "services",
         "student", "technician", "unemployed", "unknown"
     ]] = Field(None, example="technician")
-    marital: Optional[Literal["married", "single", "divorced"]] = Field(None, example="single")
-    education: Optional[Literal["primary", "secondary", "tertiary", "unknown"]] = Field(None, example="tertiary")
-    default: Optional[Literal["yes", "no"]] = Field(None, example="no")
-    balance: Optional[float] = Field(None, example=2000)
-    housing: Optional[Literal["yes", "no"]] = Field(None, example="yes")
-    loan: Optional[Literal["yes", "no"]] = Field(None, example="no")
-    batch_id: Optional[int] = Field(None, gt=0, example=1)
 
+    marital: Optional[Literal[
+        "married", "single", "divorced"
+    ]] = Field(None, example="single")
+
+    education: Optional[Literal[
+        "primary", "secondary", "tertiary", "unknown"
+    ]] = Field(None, example="tertiary")
+
+    default: Optional[Literal[
+        "yes", "no"
+    ]] = Field(None, example="no")
+
+    balance: Optional[float] = Field(
+        None,
+        example=2000
+    )
+
+    housing: Optional[Literal[
+        "yes", "no"
+    ]] = Field(None, example="yes")
+
+    loan: Optional[Literal[
+        "yes", "no"
+    ]] = Field(None, example="no")
+
+    # -------------------------
+    # CAMPAIGN FEATURES
+    # -------------------------
+
+    contact: Optional[Literal[
+        "cellular", "telephone", "unknown"
+    ]] = Field(None, example="cellular")
+
+    day: Optional[int] = Field(
+        None,
+        example=15
+    )
+
+    month: Optional[Literal[
+        "jan", "feb", "mar", "apr", "may", "jun",
+        "jul", "aug", "sep", "oct", "nov", "dec"
+    ]] = Field(None, example="may")
+
+    campaign: Optional[int] = Field(
+        None,
+        example=1
+    )
+
+    pdays: Optional[int] = Field(
+        None,
+        example=-1
+    )
+
+    previous: Optional[int] = Field(
+        None,
+        example=0
+    )
+
+    poutcome: Optional[Literal[
+        "failure", "other", "success", "unknown"
+    ]] = Field(None, example="unknown")
+
+    batch_id: Optional[int] = Field(
+        None,
+        gt=0,
+        example=1
+    )
 
 # ----------------------------------------------------
 # 1. HEALTH & ROOT ENDPOINTS[cite: 8]

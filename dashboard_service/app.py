@@ -550,6 +550,9 @@ with tab1:
     # =============================================================
     if existing_customer:
 
+        # ---------------------------------------------------------
+        # Customer / demographic information
+        # ---------------------------------------------------------
         default_age = existing_customer.get(
             "age",
             35
@@ -575,6 +578,9 @@ with tab1:
             YES_NO_OPTIONS[0]
         )
 
+        # ---------------------------------------------------------
+        # Financial information
+        # ---------------------------------------------------------
         default_balance = existing_customer.get(
             "balance",
             1000.0
@@ -590,15 +596,72 @@ with tab1:
             YES_NO_OPTIONS[0]
         )
 
+        # ---------------------------------------------------------
+        # Campaign information
+        # ---------------------------------------------------------
+        default_contact = existing_customer.get(
+            "contact",
+            CONTACT_OPTIONS[0]
+        )
+
+        default_day = existing_customer.get(
+            "day",
+            15
+        )
+
+        default_month = existing_customer.get(
+            "month",
+            MONTH_OPTIONS[0]
+        )
+
+        default_campaign = existing_customer.get(
+            "campaign",
+            1
+        )
+
+        default_pdays = existing_customer.get(
+            "pdays",
+            -1
+        )
+
+        default_previous = existing_customer.get(
+            "previous",
+            0
+        )
+
+        default_poutcome = existing_customer.get(
+            "poutcome",
+            POUTCOME_OPTIONS[0]
+        )
+
     else:
+
+        # ---------------------------------------------------------
+        # Customer / demographic information
+        # ---------------------------------------------------------
         default_age = 35
         default_job = JOB_OPTIONS[0]
         default_marital = MARITAL_OPTIONS[0]
         default_education = EDUCATION_OPTIONS[0]
         default_default = YES_NO_OPTIONS[0]
+
+        # ---------------------------------------------------------
+        # Financial information
+        # ---------------------------------------------------------
         default_balance = 1000.0
         default_housing = YES_NO_OPTIONS[0]
         default_loan = YES_NO_OPTIONS[0]
+
+        # ---------------------------------------------------------
+        # Campaign information
+        # ---------------------------------------------------------
+        default_contact = CONTACT_OPTIONS[0]
+        default_day = 15
+        default_month = MONTH_OPTIONS[0]
+        default_campaign = 1
+        default_pdays = -1
+        default_previous = 0
+        default_poutcome = POUTCOME_OPTIONS[0]
 
     # =============================================================
     # CUSTOMER INFORMATION FORM
@@ -746,6 +809,10 @@ with tab1:
             contact = st.selectbox(
                 "Contact Method",
                 CONTACT_OPTIONS,
+                index=get_option_index(
+                    CONTACT_OPTIONS,
+                    default_contact
+                ),
                 help=(
                     "Communication method used to "
                     "contact the customer."
@@ -757,7 +824,7 @@ with tab1:
                 "Last Contact Day of Month",
                 min_value=1,
                 max_value=31,
-                value=15,
+                value=int(default_day),
                 help=(
                     "Day of the month when the customer "
                     "was last contacted."
@@ -768,6 +835,10 @@ with tab1:
             month = st.selectbox(
                 "Last Contact Month",
                 MONTH_OPTIONS,
+                index=get_option_index(
+                    MONTH_OPTIONS,
+                    default_month
+                ),
                 help=(
                     "Month when the customer "
                     "was last contacted."
@@ -780,7 +851,7 @@ with tab1:
             campaign = st.number_input(
                 "Contacts in Current Campaign",
                 min_value=1,
-                value=1,
+                value=int(default_campaign),
                 help=(
                     "Number of contacts made to this customer "
                     "during the current campaign, including "
@@ -792,7 +863,7 @@ with tab1:
             pdays = st.number_input(
                 "Days Since Previous Contact",
                 min_value=-1,
-                value=-1,
+                value=int(default_pdays),
                 step=1,
                 help=(
                     "-1 means the customer was not contacted "
@@ -806,7 +877,7 @@ with tab1:
             previous = st.number_input(
                 "Previous Campaign Contacts",
                 min_value=0,
-                value=0,
+                value=int(default_previous),
                 help=(
                     "Number of contacts made to this customer "
                     "before the current campaign."
@@ -819,6 +890,10 @@ with tab1:
             poutcome = st.selectbox(
                 "Previous Campaign Outcome",
                 POUTCOME_OPTIONS,
+                index=get_option_index(
+                    POUTCOME_OPTIONS,
+                    default_poutcome
+                ),
                 help=(
                     "Outcome of the customer's "
                     "previous marketing campaign."
