@@ -518,8 +518,7 @@ with tab1:
         if not phone_number.strip():
 
             st.error(
-                "❌ Please enter a phone number before "
-                "generating a prediction."
+                "❌ Please enter a phone number before generating a prediction."
             )
         elif not phone_number.strip().isdigit() or len(phone_number.strip()) != 8:
 
@@ -538,10 +537,18 @@ with tab1:
 
                     if customer is None:
 
-                        # Clear previous customer
+                        # ---------------------------------------------------------
+                        # No existing customer found.
+                        # Clear any previously loaded customer information.
+                        # ---------------------------------------------------------
                         st.session_state.found_customer = None
                         st.session_state.customer_id = None
 
+                        # ---------------------------------------------------------
+                        # Reset all customer fields to default values.
+                        # These values allow the user to manually enter a
+                        # new customer's information.
+                        # ---------------------------------------------------------
                         st.session_state.age = 35
                         st.session_state.job = JOB_OPTIONS[0]
                         st.session_state.marital = MARITAL_OPTIONS[0]
@@ -599,16 +606,20 @@ with tab1:
                         )
 
                         # ---------------------------------------------------------
-                        # Previous prediction information
+                        # Display previous prediction information
                         # ---------------------------------------------------------
                         previous_probability = customer.get(
                             "previous_probability"
                         )
 
-                        previous_prediction = customer.get(
-                            "previous_prediction"
-                        )
+                        # previous_prediction = customer.get(
+                        #     "previous_prediction"
+                        # )
 
+                        # ---------------------------------------------------------
+                        # Determine and display the previous campaign priority
+                        # based on the stored prediction probability.
+                        # ---------------------------------------------------------        
                         if previous_probability is not None:
 
                             if previous_probability >= 0.70:
@@ -985,12 +996,12 @@ with tab1:
         else:
 
             # -----------------------------------------------------
-            # Build updated customer record
+            # Build updated customer record for the API request
             # -----------------------------------------------------
             record = {
                 "phone_number": phone_number.strip(),
 
-                # Customer information
+                # Customer information and financial information
                 "age": age,
                 "job": job,
                 "marital": marital,
@@ -1000,7 +1011,7 @@ with tab1:
                 "housing": housing,
                 "loan": loan,
 
-                # Campaign information
+                # Current and previous campaign information
                 "contact": contact,
                 "day": day,
                 "month": month,
@@ -1169,7 +1180,7 @@ with tab1:
                     # Save session history
                     # -------------------------------------------------
                     st.session_state.history.insert(
-                        0,
+                        0, # the newest result appears first in the history
                         {
                             "time": time.strftime("%H:%M:%S"),
                             "phone_number": phone_number,
@@ -1223,6 +1234,8 @@ with tab1:
         st.markdown("### 🕘 Recent Predictions")
         st.caption("Predictions generated during the current dashboard session.")
 
+        # Convert the 10 most recent predictions into a 
+        # DataFrame for display in the dashboard
         hist_df = pd.DataFrame(
             st.session_state.history[:10]
         )
@@ -1407,6 +1420,8 @@ with tab2:
                 # =================================================
                 try:
 
+                    # Request the previously stored prediction results for
+                    # the selected Batch ID through the API Gateway.
                     with st.spinner(f"Loading Batch {existing_batch_id}..."):
 
                         existing_batch_data = (
@@ -1415,6 +1430,8 @@ with tab2:
                             )
                         )
 
+                    # Extract the prediction results from the API response.
+                    # Use an empty list if no results are returned.
                     existing_results = (
                         existing_batch_data.get(
                             "results",
@@ -1431,6 +1448,8 @@ with tab2:
                             existing_results
                         )
 
+                        # Store the results and Batch ID in session state so
+                        # they remain available after Streamlit reruns.
                         st.session_state.last_batch_results = (
                             existing_results_df
                         )
@@ -1446,7 +1465,7 @@ with tab2:
                         )
 
                     # =============================================
-                    # NO RESULTS — RESUME BATCH
+                    # NO RESULTS — RESUME BATCH PROCESSING
                     # =============================================
                     else:
 
@@ -1914,6 +1933,8 @@ with tab2:
         # =========================================================
         if "probability" in results_df.columns:
 
+            # Convert prediction probabilities to numeric values.
+            # Invalid or missing values are converted to NaN.
             results_df["probability"] = pd.to_numeric(
                 results_df["probability"],
                 errors="coerce"
@@ -1927,19 +1948,15 @@ with tab2:
             def get_priority(probability):
 
                 if pd.isna(probability):
-
                     return "⚪ Unknown"
 
                 if probability >= 0.70:
-
                     return "🟢 High Priority"
 
                 elif probability >= 0.60:
-
                     return "🟡 Medium Priority"
 
                 else:
-
                     return "🔴 Low Priority"
 
             results_df["Campaign Priority"] = (
@@ -1961,13 +1978,18 @@ with tab2:
         # ---------------------------------------------------------
         if "_is_subscriber" in results_df.columns:
 
+            # Count customers predicted to subscribe.
+            # The column contains 1 for "Yes" and 0 for "No".
             predicted_yes = int(
                 results_df["_is_subscriber"].sum()
             )
 
         else:
+            # No subscription prediction column is available.
             predicted_yes = 0
 
+        # Calculate the percentage of customers predicted to subscribe.
+        # Avoid division by zero when the batch contains no customers.      
         subscription_rate = (
             predicted_yes / total_customers
             if total_customers > 0
@@ -2203,8 +2225,7 @@ with tab2:
         st.markdown("### 📥 Export Results")
 
         st.write(
-            "Download the current batch prediction results "
-            "with campaign priority."
+            "Download the current batch prediction results with campaign priority."
         )
 
         csv_bytes = (
@@ -2229,7 +2250,7 @@ with tab2:
         )
 
 # ---------------------------------------------------------------
-# TAB 3: ANALYST VIEW
+# TAB 3: CAMPAIGN ANALYTICS
 # ---------------------------------------------------------------
 with tab3:
     st.subheader("📈 Campaign Analytics")
