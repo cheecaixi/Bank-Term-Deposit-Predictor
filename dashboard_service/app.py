@@ -2310,18 +2310,17 @@ with tab3:
     if not records_df.empty:
 
         # =========================================================
-        # NORMALISE PREDICTION COLUMN
+        # IDENTIFY PREDICTION COLUMN
         # =========================================================
         if "prediction" in records_df.columns:
-
+            # Use the standard prediction column when available.
             prediction_column = "prediction"
 
         elif "subscription" in records_df.columns:
-
+            # Fall back to the subscription column if prediction is unavailable.
             prediction_column = "subscription"
 
         else:
-
             prediction_column = None
 
         # =========================================================
@@ -2385,19 +2384,15 @@ with tab3:
             def get_priority(probability):
 
                 if pd.isna(probability):
-
                     return "⚪ Unknown"
 
                 if probability >= 0.70:
-
                     return "🟢 High Priority"
 
                 elif probability >= 0.60:
-
                     return "🟡 Medium Priority"
 
                 else:
-
                     return "🔴 Low Priority"
 
             records_df["Campaign Priority"] = (
@@ -2624,7 +2619,6 @@ with tab3:
             .copy()
         )
 
-        # Do not expose internal helper column
         if "subscribed" in recent_records.columns:
 
             recent_records = recent_records.drop(
