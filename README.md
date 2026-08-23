@@ -367,12 +367,6 @@ Database:
 bank_marketing
 ```
 
-Username:
-
-```text
-postgres
-```
-
 ---
 
 # 11. Database Service Setup
@@ -433,15 +427,6 @@ http://monitoring-service:7002
 Database Service
     ↓
 postgres-db:5432
-```
-
-The integrated Compose stack and the standalone Database Service stack use
-the same local development credentials:
-
-```text
-Database: bank_marketing
-Username: postgres
-Password: postgres
 ```
 
 The services use the following environment variables:
