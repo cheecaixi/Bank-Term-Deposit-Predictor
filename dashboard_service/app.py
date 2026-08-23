@@ -137,10 +137,18 @@ def call_results_api() -> list:
 # ---------------------------------------------------------------
 def predict_one(record: dict):
     """
-    Send one customer record to the API Gateway for prediction.
+    Send one manual customer prediction to the API Gateway.
+
+    Manual predictions must never be associated with a batch.
     """
     try:
-        return call_predict_api(record)
+        manual_record = record.copy()
+
+        # IMPORTANT:
+        # Prevent an existing customer's batch_id from being reused.
+        manual_record["batch_id"] = None
+
+        return call_predict_api(manual_record)
 
     except Exception as e:
         st.error(
