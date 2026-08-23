@@ -476,10 +476,13 @@ async def get_customer_by_phone(phone_number: str):
     - 7 campaign features
     - batch_id
     - prediction_status
+    - previous prediction probability
+    - previous prediction priority
     """
 
     async with httpx.AsyncClient() as client:
         try:
+
             # ------------------------------------------------
             # 1. Get all customers from Database Service
             # ------------------------------------------------
@@ -529,52 +532,169 @@ async def get_customer_by_phone(phone_number: str):
             if not campaign_history:
                 raise HTTPException(
                     status_code=404,
-                    detail="Customer found, but campaign data was not found"
+                    detail=(
+                        "Customer found, but campaign data "
+                        "was not found"
+                    )
                 )
 
-            # Your database currently returns a list
+            # Database currently returns a list
             campaign = campaign_history[0]
 
             # ------------------------------------------------
-            # 5. Combine Customer + CampaignHistory
+            # 5. Get previous prediction for this customer
+            # ------------------------------------------------
+            prediction_response = await client.get(
+                f"{DATABASE_URL}/predictions/customer/{customer_id}",
+                timeout=TIMEOUT_SECONDS
+            )
+
+            prediction_response.raise_for_status()
+            prediction_history = prediction_response.json()
+
+            # ------------------------------------------------
+            # 6. Determine previous probability and priority
+            # ------------------------------------------------
+            previous_probability = None
+            previous_priority = None
+
+            if prediction_history:
+
+                # Database currently stores the latest prediction
+                # for this customer.
+                previous_prediction = prediction_history[0]
+
+                previous_probability = previous_prediction.get(
+                    "probability"
+                )
+
+                if previous_probability is not None:
+
+                    previous_probability = float(
+                        previous_probability
+                    )
+
+                    # -----------------------------------------
+                    # Priority classification
+                    # -----------------------------------------
+                    if previous_probability >= 0.70:
+
+                        previous_priority = (
+                            "🟢 High Priority"
+                        )
+
+                    elif previous_probability >= 0.60:
+
+                        previous_priority = (
+                            "🟡 Medium Priority"
+                        )
+
+                    else:
+
+                        previous_priority = (
+                            "🔴 Low Priority"
+                        )
+
+            # ------------------------------------------------
+            # 7. Combine Customer + Campaign + Previous
+            #    Prediction
             # ------------------------------------------------
             complete_customer = {
+
                 # --------------------------------------------
                 # Identification
                 # --------------------------------------------
-                "customer_id": customer.get("customer_id"),
-                "phone_number": customer.get("phone_number"),
-                "batch_id": customer.get("batch_id"),
+                "customer_id": customer.get(
+                    "customer_id"
+                ),
+
+                "phone_number": customer.get(
+                    "phone_number"
+                ),
+
+                "batch_id": customer.get(
+                    "batch_id"
+                ),
 
                 # --------------------------------------------
                 # Customer features
                 # --------------------------------------------
-                "age": customer.get("age"),
-                "job": customer.get("job"),
-                "marital": customer.get("marital"),
-                "education": customer.get("education"),
-                "default": customer.get("default"),
-                "balance": customer.get("balance"),
-                "housing": customer.get("housing"),
-                "loan": customer.get("loan"),
+                "age": customer.get(
+                    "age"
+                ),
+
+                "job": customer.get(
+                    "job"
+                ),
+
+                "marital": customer.get(
+                    "marital"
+                ),
+
+                "education": customer.get(
+                    "education"
+                ),
+
+                "default": customer.get(
+                    "default"
+                ),
+
+                "balance": customer.get(
+                    "balance"
+                ),
+
+                "housing": customer.get(
+                    "housing"
+                ),
+
+                "loan": customer.get(
+                    "loan"
+                ),
 
                 # --------------------------------------------
                 # Campaign features
                 # --------------------------------------------
-                "contact": campaign.get("contact"),
-                "day": campaign.get("day"),
-                "month": campaign.get("month"),
-                "campaign": campaign.get("campaign"),
-                "pdays": campaign.get("pdays"),
-                "previous": campaign.get("previous"),
-                "poutcome": campaign.get("poutcome"),
+                "contact": campaign.get(
+                    "contact"
+                ),
+
+                "day": campaign.get(
+                    "day"
+                ),
+
+                "month": campaign.get(
+                    "month"
+                ),
+
+                "campaign": campaign.get(
+                    "campaign"
+                ),
+
+                "pdays": campaign.get(
+                    "pdays"
+                ),
+
+                "previous": campaign.get(
+                    "previous"
+                ),
+
+                "poutcome": campaign.get(
+                    "poutcome"
+                ),
 
                 # --------------------------------------------
-                # Status
+                # Customer status
                 # --------------------------------------------
                 "prediction_status": customer.get(
                     "prediction_status"
-                )
+                ),
+
+                # --------------------------------------------
+                # Previous prediction
+                # --------------------------------------------
+                "previous_probability": previous_probability,
+
+                "previous_priority": previous_priority
             }
 
             return complete_customer
@@ -583,6 +703,7 @@ async def get_customer_by_phone(phone_number: str):
             raise
 
         except httpx.HTTPStatusError as exc:
+
             raise HTTPException(
                 status_code=exc.response.status_code,
                 detail=(
@@ -592,6 +713,7 @@ async def get_customer_by_phone(phone_number: str):
             )
 
         except httpx.RequestError as exc:
+
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=(
@@ -599,7 +721,6 @@ async def get_customer_by_phone(phone_number: str):
                     f"{exc}"
                 )
             )
-
 
 # ----------------------------------------------------
 # 6. UPDATE CUSTOMER RECORD (PUT -> MEMBER D)[cite: 8]

@@ -624,6 +624,40 @@ with tab1:
                             f"Customer ID: {customer['customer_id']}"
                         )
 
+                        # ---------------------------------------------------------
+                        # Previous prediction information
+                        # ---------------------------------------------------------
+                        previous_probability = customer.get(
+                            "previous_probability"
+                        )
+
+                        previous_prediction = customer.get(
+                            "previous_prediction"
+                        )
+
+                        if previous_probability is not None:
+
+                            if previous_probability >= 0.70:
+                                previous_priority = "🟢 High Priority"
+
+                            elif previous_probability >= 0.60:
+                                previous_priority = "🟡 Medium Priority"
+
+                            else:
+                                previous_priority = "🔴 Low Priority"
+
+                            st.info(
+                                f"Previous prediction probability: "
+                                f"**{previous_probability * 100:.1f}%**  •  "
+                                f"**{previous_priority}**"
+                            )
+
+                        else:
+
+                            st.caption(
+                                "ℹ️ No previous prediction is available for this customer."
+                            )
+
                 except Exception as e:
                     st.error(
                         f"❌ Unable to search customer: {e}"
