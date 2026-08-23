@@ -108,9 +108,10 @@ class Customer(Base):
     # Phone number acts as a unique customer identifier
     # to prevent duplicate customer records.
     phone_number = Column(
-        String(30),
+        String(20),
         unique=True,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     # Foreign key linking a customer to the CSV batch it came from.
