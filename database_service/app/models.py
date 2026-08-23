@@ -77,16 +77,12 @@ class BatchUpload(Base):
 class Customer(Base):
     __tablename__ = "customers"
 
-    customer_id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
+    customer_id = Column(Integer, primary_key=True, index=True)
     phone_number = Column(
-        String(30),
+        String(20),
         unique=True,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     # NULL = manual input

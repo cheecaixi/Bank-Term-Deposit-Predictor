@@ -223,7 +223,6 @@ def delete_customer(
 # ============================================================
 # CAMPAIGN HISTORY
 # ============================================================
-
 @router.post(
     "/campaign-history",
     response_model=CampaignResponse,
@@ -248,16 +247,40 @@ def create_campaign_history(
             detail="Customer not found"
         )
 
-    campaign = CampaignHistory(
-        **data.model_dump()
+    # Check if customer already has campaign data
+    existing_campaign = (
+        db.query(CampaignHistory)
+        .filter(
+            CampaignHistory.customer_id == data.customer_id
+        )
+        .first()
     )
 
-    db.add(campaign)
+    if existing_campaign is not None:
+
+        # Override existing campaign information
+        existing_campaign.contact = data.contact
+        existing_campaign.day = data.day
+        existing_campaign.month = data.month
+        existing_campaign.campaign = data.campaign
+        existing_campaign.pdays = data.pdays
+        existing_campaign.previous = data.previous
+        existing_campaign.poutcome = data.poutcome
+
+        campaign = existing_campaign
+
+    else:
+
+        campaign = CampaignHistory(
+            **data.model_dump()
+        )
+
+        db.add(campaign)
+
     db.commit()
     db.refresh(campaign)
 
     return campaign
-
 
 @router.get(
     "/campaign-history/{customer_id}",
@@ -292,6 +315,9 @@ def save_prediction(
     db: Session = Depends(get_db)
 ):
 
+    # --------------------------------------------------------
+    # 1. Check that customer exists
+    # --------------------------------------------------------
     customer = (
         db.query(Customer)
         .filter(
@@ -306,12 +332,13 @@ def save_prediction(
             detail="Customer not found"
         )
 
-    # Make sure campaign data exists
+    # --------------------------------------------------------
+    # 2. Make sure campaign data exists
+    # --------------------------------------------------------
     campaign = (
         db.query(CampaignHistory)
         .filter(
-            CampaignHistory.customer_id
-            == data.customer_id
+            CampaignHistory.customer_id == data.customer_id
         )
         .first()
     )
@@ -322,27 +349,68 @@ def save_prediction(
             detail="Customer does not have campaign data yet"
         )
 
-    prediction = Prediction(
-        **data.model_dump()
+    # --------------------------------------------------------
+    # 3. Check whether this customer already has a prediction
+    # --------------------------------------------------------
+    existing_prediction = (
+        db.query(Prediction)
+        .filter(
+            Prediction.customer_id == data.customer_id
+        )
+        .first()
     )
 
-    db.add(prediction)
+    # --------------------------------------------------------
+    # 4. UPDATE existing prediction
+    # --------------------------------------------------------
+    if existing_prediction is not None:
 
-    # Once prediction is successfully stored
+        existing_prediction.prediction = data.prediction
+        existing_prediction.probability = data.probability
+
+        prediction = existing_prediction
+
+    # --------------------------------------------------------
+    # 5. CREATE prediction if customer has none
+    # --------------------------------------------------------
+    else:
+
+        prediction = Prediction(
+            **data.model_dump()
+        )
+
+        db.add(prediction)
+
+    # --------------------------------------------------------
+    # 6. Mark customer prediction as completed
+    # --------------------------------------------------------
     customer.prediction_status = "COMPLETED"
 
+    # --------------------------------------------------------
+    # 7. Update batch status
+    # --------------------------------------------------------
     if customer.batch_id is not None:
+
         batch = (
             db.query(BatchUpload)
-            .filter(BatchUpload.batch_id == customer.batch_id)
+            .filter(
+                BatchUpload.batch_id == customer.batch_id
+            )
             .first()
         )
+
         completed_count = (
             db.query(Prediction)
-            .join(Customer, Customer.customer_id == Prediction.customer_id)
-            .filter(Customer.batch_id == customer.batch_id)
+            .join(
+                Customer,
+                Customer.customer_id == Prediction.customer_id
+            )
+            .filter(
+                Customer.batch_id == customer.batch_id
+            )
             .count()
         )
+
         if batch is not None:
             batch.status = (
                 "completed"
@@ -350,6 +418,9 @@ def save_prediction(
                 else "processing"
             )
 
+    # --------------------------------------------------------
+    # 8. Save
+    # --------------------------------------------------------
     db.commit()
     db.refresh(prediction)
 
@@ -515,7 +586,6 @@ def get_batch(
 # ============================================================
 # GET CUSTOMERS FROM SPECIFIC BATCH
 # ============================================================
-
 @router.get(
     "/batch-uploads/{batch_id}/customers",
     tags=["Batch Upload"]
@@ -525,15 +595,70 @@ def get_batch_customers(
     db: Session = Depends(get_db)
 ):
 
-    customers = (
-        db.query(Customer)
+    batch = (
+        db.query(BatchUpload)
+        .filter(
+            BatchUpload.batch_id == batch_id
+        )
+        .first()
+    )
+
+    if batch is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Batch not found"
+        )
+
+    results = (
+        db.query(
+            Customer,
+            CampaignHistory
+        )
+        .join(
+            CampaignHistory,
+            Customer.customer_id
+            == CampaignHistory.customer_id
+        )
         .filter(
             Customer.batch_id == batch_id
         )
         .all()
     )
 
-    return customers
+    response = []
+
+    for customer, campaign in results:
+
+        response.append({
+
+            # Identification
+            "customer_id": customer.customer_id,
+            "phone_number": customer.phone_number,
+            "batch_id": customer.batch_id,
+
+            # 15 prediction features
+            "age": customer.age,
+            "job": customer.job,
+            "marital": customer.marital,
+            "education": customer.education,
+            "default": customer.default,
+            "balance": customer.balance,
+            "housing": customer.housing,
+            "loan": customer.loan,
+
+            "contact": campaign.contact,
+            "day": campaign.day,
+            "month": campaign.month,
+            "campaign": campaign.campaign,
+            "pdays": campaign.pdays,
+            "previous": campaign.previous,
+            "poutcome": campaign.poutcome,
+
+            # Status
+            "prediction_status": customer.prediction_status
+        })
+
+    return response
 
 
 # ============================================================
@@ -566,7 +691,13 @@ def get_batch_results(
     results = (
         db.query(
             Customer,
+            CampaignHistory,
             Prediction
+        )
+        .join(
+            CampaignHistory,
+            Customer.customer_id
+            == CampaignHistory.customer_id
         )
         .join(
             Prediction,
@@ -581,19 +712,34 @@ def get_batch_results(
 
     response = []
 
-    for customer, prediction in results:
+    for customer, campaign, prediction in results:
 
         response.append({
+            # Identification
             "customer_id": customer.customer_id,
             "phone_number": customer.phone_number,
 
+            # 15 prediction features
             "age": customer.age,
             "job": customer.job,
+            "marital": customer.marital,
+            "education": customer.education,
+            "default": customer.default,
+            "balance": customer.balance,
+            "housing": customer.housing,
+            "loan": customer.loan,
 
+            "contact": campaign.contact,
+            "day": campaign.day,
+            "month": campaign.month,
+            "campaign": campaign.campaign,
+            "pdays": campaign.pdays,
+            "previous": campaign.previous,
+            "poutcome": campaign.poutcome,
+
+            # Prediction result
             "prediction": prediction.prediction,
-
             "probability": prediction.probability,
-
             "predicted_at": prediction.predicted_at
         })
 
