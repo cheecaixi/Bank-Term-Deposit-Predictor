@@ -6,9 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app # Copies the Monitoring Service application into the container
+# Copies the Monitoring Service application into the container
+COPY app ./app
 
-EXPOSE 7002 # Documents port 7002 used by the Monitoring Service
+# Documents port 7002 used by the Monitoring Service
+EXPOSE 7002
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7002"]
 # Starts the FastAPI Monitoring Service using Uvicorn on port 7002
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7002"]

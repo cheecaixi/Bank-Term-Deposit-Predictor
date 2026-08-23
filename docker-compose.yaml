@@ -9,6 +9,8 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
+    volumes:
+      - bank-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d bank_marketing"]
       interval: 5s
@@ -106,3 +108,4 @@ services:
 
 volumes:
   monitoring-data:
+  bank-postgres-data:
