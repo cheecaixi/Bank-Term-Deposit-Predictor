@@ -1,29 +1,26 @@
 # Horizontal Pod Autoscaler (HPA)
-# Automatically increases or decreases Dashboard pods based on CPU usage.
+# Automatically increases or decreases Dashboard pods based on average CPU utilization
 
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 
 metadata:
-  # Name of the HPA
   name: dashboard-hpa
 
 spec:
-  # Deployment that this HPA controls
+  # Deployment managed by this HPA
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: dashboard
 
-  # Minimum number of Dashboard pods
-  # Keeps at least 2 pods running for better availability.
-  minReplicas: 2
+  # At least 3 pods remain available during low traffic
+  minReplicas: 3
 
-  # Maximum number of Dashboard pods
-  # Kubernetes can scale up to 5 pods when demand increases.
+  # The Dashboard can scale up to 5 pods during high traffic
   maxReplicas: 5
 
-  # Scaling metric
+  # Metrics used to determine when scaling is required
   metrics:
     - type: Resource
       resource:
@@ -31,9 +28,9 @@ spec:
         name: cpu
 
         target:
-          # Scale based on average CPU utilization
+          # Scale based on average CPU utilization across all Dashboard pods
           type: Utilization
 
-          # When average CPU usage goes above 70%,
-          # Kubernetes increases the number of pods.
+          # When average CPU usage goes above 70%, Kubernetes increases the number of pods
+          # scales down when utilization falls sufficiently below the target
           averageUtilization: 70
