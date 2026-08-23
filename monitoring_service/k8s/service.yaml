@@ -1,12 +1,13 @@
+# Creates an internal Kubernetes Service for accessing the Monitoring Service.
 apiVersion: v1
 kind: Service
 metadata:
   name: monitoring-service
 spec:
-  type: ClusterIP
+  type: ClusterIP  #Makes the service accessible within the cluster
   selector:
-    app: monitoring-service
+    app: monitoring-service # Routes traffic to the Monitoring Service pod
   ports:
-    - protocol: TCP
-      port: 7002
-      targetPort: 7002
+    - protocol: TCP # Uses TCP for communication
+      port: 7002 # Port exposed by the Kubernetes Service
+      targetPort: 7002 # Sends traffic to container port 7002

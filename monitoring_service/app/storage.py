@@ -1,3 +1,5 @@
+# Handles SQLite storage for monitoring logs, including database setup,
+# log insertion/retrieval, retention control, and monitoring metrics.
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -7,7 +9,7 @@ from typing import Any, Optional
 from app.config import LOG_RETENTION_LIMIT, MONITORING_DATABASE_PATH
 from app.schemas import LogCreate
 
-
+# Creates and configures a connection to the SQLite monitoring database
 def _connect() -> sqlite3.Connection:
     database_path = Path(MONITORING_DATABASE_PATH)
     database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -16,6 +18,7 @@ def _connect() -> sqlite3.Connection:
     return connection
 
 
+# Creates the system_logs table and indexes if they do not already exist
 def initialize_database() -> None:
     with _connect() as connection:
         connection.execute("PRAGMA journal_mode=WAL")
@@ -36,16 +39,18 @@ def initialize_database() -> None:
             )
             """
         )
+         # Improves performance when retrieving logs by time
         connection.execute(
             "CREATE INDEX IF NOT EXISTS ix_system_logs_timestamp "
             "ON system_logs (timestamp DESC)"
         )
+        # Improves filtering by service and log level
         connection.execute(
             "CREATE INDEX IF NOT EXISTS ix_system_logs_service_level "
             "ON system_logs (service, level)"
         )
 
-
+# Stores a new log and removes old logs when the retention limit is exceeded
 def add_log(log: LogCreate) -> dict[str, Any]:
     timestamp = datetime.now(timezone.utc).isoformat()
     with _connect() as connection:
@@ -69,6 +74,7 @@ def add_log(log: LogCreate) -> dict[str, Any]:
                 json.dumps(log.metadata) if log.metadata is not None else None,
             ),
         )
+        # Keeps only the most recent logs based on the configured retention limit
         connection.execute(
             """
             DELETE FROM system_logs
@@ -83,9 +89,10 @@ def add_log(log: LogCreate) -> dict[str, Any]:
 
     return get_log(log_id)
 
-
+# Converts a SQLite row into a normal Python dictionary
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     result = dict(row)
+    # Converts stored JSON metadata back into a Python dictionary
     result["metadata"] = (
         json.loads(result["metadata"])
         if result["metadata"] is not None
@@ -93,7 +100,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     )
     return result
 
-
+# Retrieves one log using its unique log ID
 def get_log(log_id: int) -> dict[str, Any]:
     with _connect() as connection:
         row = connection.execute(
@@ -102,7 +109,7 @@ def get_log(log_id: int) -> dict[str, Any]:
         ).fetchone()
     return _row_to_dict(row)
 
-
+# Retrieves recent logs with optional service and log-level filters
 def get_logs(
     limit: int,
     service: Optional[str] = None,
@@ -116,7 +123,7 @@ def get_logs(
     if level:
         conditions.append("level = ?")
         parameters.append(level)
-
+    # Builds the WHERE clause only when filters are provided
     where_clause = (
         " WHERE " + " AND ".join(conditions)
         if conditions
@@ -133,9 +140,10 @@ def get_logs(
         ).fetchall()
     return [_row_to_dict(row) for row in rows]
 
-
+# Calculates overall and per-service monitoring statistics from stored logs
 def get_metrics() -> dict[str, Any]:
     with _connect() as connection:
+        # Calculates total logs, errors, warnings, and response-time metrics
         totals = connection.execute(
             """
             SELECT
@@ -149,6 +157,7 @@ def get_metrics() -> dict[str, Any]:
             FROM system_logs
             """
         ).fetchone()
+        # Calculates log and error statistics separately for each service
         by_service = connection.execute(
             """
             SELECT service, COUNT(*) AS total_logs,

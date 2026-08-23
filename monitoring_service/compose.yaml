@@ -1,9 +1,12 @@
+# Runs the Monitoring Service using Docker Compose with service URLs,
+# persistent monitoring data storage, and port configuration.
 version: '3.8'
 services:
   monitoring-service:
-    build:
+    build:   # Builds the Monitoring Service Docker image
       context: .
       dockerfile: Dockerfile
+    # Configures the services to monitor and monitoring settings
     environment:
       AI_SERVICE_URL: http://host.docker.internal:7000
       GATEWAY_SERVICE_URL: http://host.docker.internal:8080
@@ -11,11 +14,12 @@ services:
       DASHBOARD_SERVICE_URL: http://host.docker.internal:8501
       MONITORING_DATABASE_PATH: /data/monitoring.db
       POLL_INTERVAL_SECONDS: "30"
-    ports:
+    ports: # Exposes the Monitoring Service on port 7002
       - "7002:7002"
-    volumes:
+    volumes:  # Stores monitoring data persistently
       - monitoring_data:/data
-    restart: unless-stopped
+    restart: unless-stopped  # Automatically restarts the service unless manually stopped
 
+# Defines persistent storage for the monitoring database
 volumes:
   monitoring_data:
