@@ -1,3 +1,5 @@
+# Deploys the Monitoring Service, loads its configuration, provides persistent
+# storage for monitoring logs, and performs Kubernetes health checks.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,33 +12,35 @@ spec:
   template:
     metadata:
       labels:
-        app: monitoring-service
+        app: monitoring-service  # Label assigned to the pod
     spec:
       containers:
         - name: monitoring-service
-          image: monitoring_service-monitoring-service:latest
+          image: monitoring_service-monitoring-service:latest  # Docker image containing the Monitoring Service
           imagePullPolicy: Never
           ports:
-            - containerPort: 7002
-          envFrom:
+            - containerPort: 7002 # Port used by the Monitoring Service
+          envFrom:   # Loads all environment variables from the monitoring ConfigMap
             - configMapRef:
                 name: monitoring-config
           volumeMounts:
+          # Mounts persistent storage at /data
             - name: monitoring-storage
               mountPath: /data
-          readinessProbe:
+          readinessProbe:  # Checks whether the service is ready to receive traffic
             httpGet:
               path: /health
               port: 7002
             initialDelaySeconds: 3
             periodSeconds: 5
-          livenessProbe:
+          livenessProbe: # Checks whether the service is still running correctly
             httpGet:
               path: /health
               port: 7002
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
+      # Connects persistent storage to the Monitoring Service
         - name: monitoring-storage
           persistentVolumeClaim:
             claimName: monitoring-pvc

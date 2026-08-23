@@ -1,13 +1,16 @@
+# Stores configuration settings used by the Monitoring Service in Kubernetes
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: monitoring-config
 data:
+  # Internal Kubernetes URLs of the microservices being monitored
   AI_SERVICE_URL: http://ai-inference-service:7000
   GATEWAY_SERVICE_URL: http://api-gateway-service:8080
   DATABASE_SERVICE_URL: http://database-service:8000
   DASHBOARD_SERVICE_URL: http://dashboard-service:8501
+  # Location where the monitoring SQLite database is stored
   MONITORING_DATABASE_PATH: /data/monitoring.db
-  POLL_INTERVAL_SECONDS: "30"
-  REQUEST_TIMEOUT_SECONDS: "5"
-  LOG_RETENTION_LIMIT: "5000"
+  POLL_INTERVAL_SECONDS: "30" # Performs health checks every 30 seconds
+  REQUEST_TIMEOUT_SECONDS: "5" # Maximum time to wait for a health-check response
+  LOG_RETENTION_LIMIT: "5000"  # Maximum number of monitoring logs to retain
