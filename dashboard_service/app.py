@@ -108,16 +108,6 @@ def call_predict_api(record: dict) -> dict:
     response.raise_for_status()
     return response.json()
 
-def get_all_batches() -> list:
-    """
-    Retrieve all uploaded batches from the API Gateway.
-    Used to check whether a CSV file has already been uploaded.
-    """
-    url = f"{st.session_state.gateway_url}/api/batch-uploads"
-    response = requests.get(url,timeout=10)
-    response.raise_for_status()
-    return response.json()
-
 def search_customer_by_phone(phone_number: str):
     """
     Retrieve an existing customer and ALL 15 prediction features
