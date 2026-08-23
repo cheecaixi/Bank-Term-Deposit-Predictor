@@ -6,6 +6,7 @@ data:
   AI_SERVICE_URL: http://ai-inference-service:7000
   GATEWAY_SERVICE_URL: http://api-gateway-service:8080
   DATABASE_SERVICE_URL: http://database-service:8000
+  DASHBOARD_SERVICE_URL: http://dashboard-service:8501
   MONITORING_DATABASE_PATH: /data/monitoring.db
   POLL_INTERVAL_SECONDS: "30"
   REQUEST_TIMEOUT_SECONDS: "5"

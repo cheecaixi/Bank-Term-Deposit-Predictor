@@ -8,6 +8,7 @@ services:
       AI_SERVICE_URL: http://host.docker.internal:7000
       GATEWAY_SERVICE_URL: http://host.docker.internal:8080
       DATABASE_SERVICE_URL: http://host.docker.internal:8000
+      DASHBOARD_SERVICE_URL: http://host.docker.internal:8501
       MONITORING_DATABASE_PATH: /data/monitoring.db
       POLL_INTERVAL_SECONDS: "30"
     ports:

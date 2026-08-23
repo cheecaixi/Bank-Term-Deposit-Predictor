@@ -9,6 +9,7 @@ from app.config import (
     MONITORED_SERVICES,
     POLL_INTERVAL_SECONDS,
     REQUEST_TIMEOUT_SECONDS,
+    SERVICE_HEALTH_PATHS,
 )
 from app.schemas import LogCreate
 from app.storage import add_log
@@ -19,7 +20,8 @@ async def check_service(
     service: str,
     base_url: str,
 ) -> dict[str, Any]:
-    health_url = f"{base_url.rstrip('/')}/health"
+    health_path = SERVICE_HEALTH_PATHS.get(service, "/health")
+    health_url = f"{base_url.rstrip('/')}{health_path}"
     started_at = perf_counter()
     checked_at = datetime.now(timezone.utc).isoformat()
 

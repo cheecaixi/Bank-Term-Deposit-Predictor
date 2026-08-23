@@ -45,7 +45,8 @@ app = FastAPI(
             "name": "Microservice Status",
             "description": (
                 "Live health checks for Student A's AI interface, Student B's "
-                "API gateway, and Student D's database service."
+                "API gateway, Student D's database service, and the Streamlit "
+                "dashboard."
             ),
         },
         {
@@ -65,7 +66,7 @@ app = FastAPI(
     tags=["Monitoring Service"],
     summary="Get monitoring service information",
     description=(
-        "Identifies Student D's monitoring service and lists the three "
+        "Identifies Student D's monitoring service and lists the four "
         "microservices it monitors."
     ),
 )
@@ -83,7 +84,7 @@ def root():
     summary="Check the monitoring service health",
     description=(
         "Checks whether the monitoring service itself is running. This does "
-        "not check the AI, gateway, or database services."
+        "not check the AI, gateway, database, or dashboard services."
     ),
 )
 def health():
@@ -93,11 +94,11 @@ def health():
 @app.get(
     "/status",
     tags=["Microservice Status"],
-    summary="Check AI, Gateway and Database health",
+    summary="Check AI, Gateway, Database and Dashboard health",
     description=(
         "Actively calls /health on Student A's AI interface, Student B's API "
-        "gateway, and Student D's database service, then returns their status "
-        "and response time."
+        "gateway, Student D's database service, and the Streamlit dashboard, "
+        "then returns their status and response time."
     ),
 )
 async def service_status():
