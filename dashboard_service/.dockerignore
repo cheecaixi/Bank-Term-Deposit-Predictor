@@ -1,41 +1,51 @@
 # Git
-.git
+.git/
 .gitignore
+.gitattributes
 
-# Python cache
+# Python Cache
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 
-# Virtual environments
+# Virtual Environment
 .venv/
 venv/
 env/
+ENV/
 
-# Environment variables / secrets
+# Environment Variables / Secrets
 .env
 .env.*
-.streamlit/secrets.toml
-
-# IDE / editor files
-.vscode/
-.idea/
+**/.env
+**/.env.*
 
 # Logs
 *.log
+**/*.log
 
-# OS files
+# Testing / Coverage
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Operating System
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# Temporary Files
 *.tmp
 *.temp
+*.swp
 
-# Local test data
-*.csv
-*.xlsx
+# Documentation
+README.md
 
-# Docker files not needed inside image
-Dockerfile
-.dockerignore
+# Kubernetes
+k8s/
