@@ -463,17 +463,26 @@ async def fetch_historical_results():
                 detail=f"Member D (Database Service) unreachable: {exc}"
             )
 
-
 # ----------------------------------------------------
-# 5. SEARCH CUSTOMER BY PHONE NUMBER[cite: 8]
+# 5. SEARCH CUSTOMER BY PHONE NUMBER
 # ----------------------------------------------------
 @app.get("/api/customers/phone/{phone_number}", tags=["Customers"])
 async def get_customer_by_phone(phone_number: str):
     """
-    Search for an existing customer by phone number.[cite: 8]
+    Search for an existing customer by phone number.
+
+    Returns the complete customer record including:
+    - 8 customer demographic/financial features
+    - 7 campaign features
+    - batch_id
+    - prediction_status
     """
+
     async with httpx.AsyncClient() as client:
         try:
+            # ------------------------------------------------
+            # 1. Get all customers from Database Service
+            # ------------------------------------------------
             response = await client.get(
                 f"{DATABASE_URL}/customers",
                 timeout=TIMEOUT_SECONDS
@@ -482,11 +491,15 @@ async def get_customer_by_phone(phone_number: str):
             response.raise_for_status()
             customers = response.json()
 
+            # ------------------------------------------------
+            # 2. Find customer by phone number
+            # ------------------------------------------------
             customer = next(
                 (
                     item
                     for item in customers
-                    if str(item.get("phone_number", "")).strip() == phone_number.strip()
+                    if str(item.get("phone_number", "")).strip()
+                    == phone_number.strip()
                 ),
                 None
             )
@@ -497,7 +510,74 @@ async def get_customer_by_phone(phone_number: str):
                     detail="Customer not found"
                 )
 
-            return customer
+            customer_id = customer["customer_id"]
+
+            # ------------------------------------------------
+            # 3. Get campaign history for this customer
+            # ------------------------------------------------
+            campaign_response = await client.get(
+                f"{DATABASE_URL}/campaign-history/{customer_id}",
+                timeout=TIMEOUT_SECONDS
+            )
+
+            campaign_response.raise_for_status()
+            campaign_history = campaign_response.json()
+
+            # ------------------------------------------------
+            # 4. Make sure campaign data exists
+            # ------------------------------------------------
+            if not campaign_history:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Customer found, but campaign data was not found"
+                )
+
+            # Your database currently returns a list
+            campaign = campaign_history[0]
+
+            # ------------------------------------------------
+            # 5. Combine Customer + CampaignHistory
+            # ------------------------------------------------
+            complete_customer = {
+                # --------------------------------------------
+                # Identification
+                # --------------------------------------------
+                "customer_id": customer.get("customer_id"),
+                "phone_number": customer.get("phone_number"),
+                "batch_id": customer.get("batch_id"),
+
+                # --------------------------------------------
+                # Customer features
+                # --------------------------------------------
+                "age": customer.get("age"),
+                "job": customer.get("job"),
+                "marital": customer.get("marital"),
+                "education": customer.get("education"),
+                "default": customer.get("default"),
+                "balance": customer.get("balance"),
+                "housing": customer.get("housing"),
+                "loan": customer.get("loan"),
+
+                # --------------------------------------------
+                # Campaign features
+                # --------------------------------------------
+                "contact": campaign.get("contact"),
+                "day": campaign.get("day"),
+                "month": campaign.get("month"),
+                "campaign": campaign.get("campaign"),
+                "pdays": campaign.get("pdays"),
+                "previous": campaign.get("previous"),
+                "poutcome": campaign.get("poutcome"),
+
+                # --------------------------------------------
+                # Status
+                # --------------------------------------------
+                "prediction_status": customer.get(
+                    "prediction_status"
+                )
+            }
+
+            return complete_customer
 
         except HTTPException:
             raise
@@ -505,13 +585,19 @@ async def get_customer_by_phone(phone_number: str):
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code,
-                detail=f"Member D (Database Service) error: {exc.response.text}"
+                detail=(
+                    "Member D (Database Service) error: "
+                    f"{exc.response.text}"
+                )
             )
 
         except httpx.RequestError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Member D (Database Service) unreachable: {exc}"
+                detail=(
+                    "Member D (Database Service) unreachable: "
+                    f"{exc}"
+                )
             )
 
 
