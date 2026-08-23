@@ -1,5 +1,10 @@
 # evaluate.py
 # Evaluate the final trained bank term deposit prediction model
+#
+# Evaluation flow:
+# 1. Load the saved model and recreate the held-out test set.
+# 2. Calculate classification metrics at the chosen threshold.
+# 3. Save metrics, diagnostic charts, and feature importance.
 
 import os
 import joblib
@@ -44,6 +49,10 @@ RESULTS_FOLDER = os.path.join(
 )
 
 
+# ============================================================
+# 1. LOAD THE MODEL AND RECREATE THE TEST SET
+# ============================================================
+
 def load_model():
     """
     Load the saved final machine learning model.
@@ -81,7 +90,8 @@ def prepare_test_data():
     # Separate features and target
     X, y = prepare_features(df)
 
-    # Recreate the same train and test split
+    # Recreate the same split used in train.py. Matching the
+    # random state ensures that evaluation uses the same test rows.
     (
         X_train,
         X_test,
@@ -98,6 +108,10 @@ def prepare_test_data():
     return X_test, y_test
 
 
+# ============================================================
+# 2. CALCULATE AND DISPLAY FINAL MODEL PERFORMANCE
+# ============================================================
+
 def calculate_metrics(
     model,
     X_test,
@@ -112,7 +126,8 @@ def calculate_metrics(
         X_test
     )[:, 1]
 
-    # Convert probability into class prediction
+    # Convert the probability into a Yes/No result using the
+    # deployment threshold stored in config.py.
     y_pred = (
         y_probability >= PREDICTION_THRESHOLD
     ).astype(int)
@@ -254,6 +269,10 @@ def save_metrics(results):
     print("Metrics saved:")
     print(file_path)
 
+
+# ============================================================
+# 3. CREATE EVALUATION CHARTS
+# ============================================================
 
 def create_confusion_matrix(
     y_test,
@@ -406,7 +425,8 @@ def create_feature_importance(
         exist_ok=True
     )
 
-    # Calculate permutation feature importance
+    # Measure how much ROC AUC falls when each input column is
+    # shuffled. Larger drops indicate more influential features.
     importance = permutation_importance(
         model,
         X_test,
@@ -484,23 +504,27 @@ def create_feature_importance(
     print(image_path)
 
 
+# ============================================================
+# 4. RUN THE COMPLETE EVALUATION WORKFLOW
+# ============================================================
+
 def main():
 
     print("=" * 60)
     print("BANK TERM DEPOSIT MODEL EVALUATION")
     print("=" * 60)
 
-    # Load trained model
+    # Step 1: load the exact model used by the inference API.
     model = load_model()
 
-    # Prepare test dataset
+    # Step 2: recreate the unseen test portion of the dataset.
     X_test, y_test = prepare_test_data()
 
     print()
     print("Testing rows:")
     print(len(X_test))
 
-    # Evaluate model
+    # Step 3: calculate predictions, probabilities, and metrics.
     (
         results,
         y_pred,
@@ -518,7 +542,7 @@ def main():
         y_pred
     )
 
-    # Save evaluation metrics
+    # Step 4: save numeric results and visual evidence.
     save_metrics(
         results
     )

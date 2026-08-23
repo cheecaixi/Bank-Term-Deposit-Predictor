@@ -1,6 +1,12 @@
 # train.py
 # Train, tune, compare, and save machine learning models
 # for bank term deposit prediction
+#
+# Training flow used during the code walkthrough:
+# 1. Load and clean the dataset.
+# 2. Split the data while preserving the target distribution.
+# 3. Tune and evaluate four classification models.
+# 4. Select the best model by ROC AUC and save it for the API.
 
 import os
 import joblib
@@ -47,6 +53,11 @@ MODEL_FOLDER = os.path.join(
     "models"
 )
 
+
+# ============================================================
+# 1. DATA SPLITTING AND CLASS-IMBALANCE HELPERS
+# ============================================================
+
 def split_dataset(X, y):
     """
     Split the dataset into training and testing data.
@@ -80,6 +91,10 @@ def calculate_scale_pos_weight(y_train):
     return negative / positive
 
 
+# ============================================================
+# 2. MODEL PIPELINES AND SEARCH SPACES
+# ============================================================
+
 def create_model_configs(scale_pos_weight):
     """
     Create each model together with its tuning parameters.
@@ -90,6 +105,8 @@ def create_model_configs(scale_pos_weight):
 
     model_configs = {
 
+        # Random Forest handles imbalance by assigning more
+        # importance to the minority subscription class.
         "Random Forest": {
 
             "pipeline": ImbPipeline(
@@ -140,6 +157,8 @@ def create_model_configs(scale_pos_weight):
         },
 
 
+        # Gradient Boosting uses SMOTE inside the pipeline so
+        # oversampling happens only on training folds.
         "Gradient Boosting": {
 
             "pipeline": ImbPipeline(
@@ -193,6 +212,8 @@ def create_model_configs(scale_pos_weight):
         },
 
 
+        # XGBoost uses the calculated negative-to-positive
+        # ratio to give the minority class more influence.
         "XGBoost": {
 
             "pipeline": ImbPipeline(
@@ -252,6 +273,8 @@ def create_model_configs(scale_pos_weight):
         },
 
 
+        # LightGBM uses balanced class weights while keeping
+        # training efficient for the larger dataset.
         "LightGBM": {
 
             "pipeline": ImbPipeline(
@@ -320,6 +343,10 @@ def create_model_configs(scale_pos_weight):
     return model_configs
 
 
+# ============================================================
+# 3. HYPERPARAMETER TUNING, THRESHOLDING, AND EVALUATION
+# ============================================================
+
 def tune_model(
     model_name,
     pipeline,
@@ -345,6 +372,8 @@ def tune_model(
         random_state=RANDOM_STATE
     )
 
+    # Randomized search tests a practical sample of parameter
+    # combinations instead of trying every possible combination.
     search = RandomizedSearchCV(
         estimator=pipeline,
         param_distributions=params,
@@ -398,6 +427,8 @@ def find_best_threshold(
         random_state=RANDOM_STATE
     )
 
+    # Cross-validated probabilities prevent the threshold from
+    # being selected using predictions from the final test set.
     y_probability = cross_val_predict(
         model,
         X_train,
@@ -414,6 +445,7 @@ def find_best_threshold(
     fallback_threshold = 0.50
     fallback_f1 = -1.0
 
+    # Test thresholds from 0.30 through 0.80 in steps of 0.01.
     for threshold_value in range(30, 81):
 
         threshold = threshold_value / 100
@@ -510,6 +542,10 @@ def evaluate_model(
     return results, y_pred
 
 
+# ============================================================
+# 4. TRAIN, COMPARE, AND SELECT THE BEST MODEL
+# ============================================================
+
 def train_models(
     X_train,
     X_test,
@@ -543,8 +579,11 @@ def train_models(
     best_model_threshold = 0.50
     best_roc_auc = 0
 
+    # Repeat the same tuning and evaluation process for each
+    # candidate model so their results can be compared fairly.
     for model_name, config in model_configs.items():
 
+        # Step A: tune the model using only the training data.
         best_model_for_type = tune_model(
             model_name,
             config["pipeline"],
@@ -557,6 +596,8 @@ def train_models(
             model_name
         ] = best_model_for_type
 
+        # Step B: choose a probability threshold for converting
+        # probabilities into Yes/No predictions.
         best_threshold = find_best_threshold(
             best_model_for_type,
             X_train,
@@ -569,6 +610,7 @@ def train_models(
             f"{best_threshold:.2f}"
         )
 
+        # Step C: measure final performance on unseen test data.
         model_results, y_pred = evaluate_model(
             best_model_for_type,
             X_test,
@@ -641,6 +683,8 @@ def train_models(
             }
         )
 
+        # ROC AUC is the selection metric because it measures
+        # ranking quality across thresholds on imbalanced data.
         if (
             model_results["ROC AUC"]
             > best_roc_auc
@@ -682,6 +726,10 @@ def train_models(
     )
 
 
+# ============================================================
+# 5. SAVE THE MODEL ARTIFACT USED BY THE INFERENCE API
+# ============================================================
+
 def save_model(
     model,
     model_name
@@ -718,6 +766,10 @@ def save_model(
     )
 
 
+# ============================================================
+# 6. RUN THE COMPLETE TRAINING WORKFLOW
+# ============================================================
+
 def main():
 
     print("=" * 70)
@@ -728,12 +780,14 @@ def main():
 
     print("=" * 70)
 
+    # Step 1: load the source CSV and apply data-cleaning rules.
     df = load_data()
 
     df = clean_data(
         df
     )
 
+    # Step 2: separate the 15 model inputs from the target label.
     X, y = prepare_features(
         df
     )
@@ -758,6 +812,7 @@ def main():
         ) * 100
     )
 
+    # Step 3: reserve 20% of the data for final testing.
     (
         X_train,
         X_test,
@@ -791,6 +846,7 @@ def main():
         ) * 100
     )
 
+    # Step 4: tune, evaluate, and compare all four models.
     (
         best_model,
         best_model_name,
@@ -851,6 +907,7 @@ def main():
         "before running evaluate.py."
     )
 
+    # Step 5: save the winning fitted pipeline as best_model.joblib.
     save_model(
         best_model,
         best_model_name

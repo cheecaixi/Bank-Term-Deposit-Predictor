@@ -1,8 +1,14 @@
+# cleaning.py
+# Load the raw dataset and convert it into a consistent format
+# for feature preparation and model training.
+
 import pandas as pd
 
 from config import DATA_PATH
 
 
+# The source CSV uses generic V1-V16 headings. This mapping
+# gives every column a meaningful business name.
 COLUMN_NAMES = {
     "V1": "age",
     "V2": "job",
@@ -24,6 +30,10 @@ COLUMN_NAMES = {
 }
 
 
+# ============================================================
+# 1. LOAD THE SOURCE DATA
+# ============================================================
+
 def load_data():
     """
     Load the bank marketing dataset.
@@ -34,19 +44,28 @@ def load_data():
     return df
 
 
+# ============================================================
+# 2. APPLY REPEATABLE CLEANING RULES
+# ============================================================
+
 def clean_data(df):
     """
     Prepare the dataset for machine learning.
     """
 
+    # Work on a copy so the original DataFrame is not modified.
     df = df.copy()
 
+    # Replace generic source headings with readable names.
     df = df.rename(
         columns=COLUMN_NAMES
     )
 
+    # Repeated records could bias the trained model.
     df = df.drop_duplicates()
 
+    # Convert the original labels into the binary format used
+    # by the classifiers: 0 = No and 1 = Yes.
     df["target"] = df["target"].map({
         1: 0,
         2: 1
@@ -55,6 +74,7 @@ def clean_data(df):
     return df
 
 
+# Running this file directly performs a quick cleaning check.
 if __name__ == "__main__":
 
     df = load_data()

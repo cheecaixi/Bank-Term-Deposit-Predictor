@@ -1,5 +1,10 @@
 # app.py
 # FastAPI AI inference service for bank term deposit prediction
+#
+# Runtime flow:
+# 1. Load the saved preprocessing-and-model pipeline at startup.
+# 2. Validate incoming customer data with the Pydantic schema.
+# 3. Return a prediction, probability, and processing time.
 
 import time
 import joblib
@@ -18,6 +23,10 @@ from config import (
 from inference.schemas import CustomerData
 
 
+# ============================================================
+# 1. CREATE THE FASTAPI APPLICATION
+# ============================================================
+
 # Create FastAPI application
 app = FastAPI(
     title="Bank Term Deposit AI Inference Service",
@@ -29,7 +38,11 @@ app = FastAPI(
 )
 
 
-# Load the trained model when the API starts
+# ============================================================
+# 2. LOAD THE TRAINED MODEL WHEN THE SERVICE STARTS
+# ============================================================
+
+# Loading once at startup avoids reloading the model for every request.
 try:
 
     model = joblib.load(
@@ -64,6 +77,10 @@ except Exception as error:
     print("Model could not be loaded")
     print(error)
 
+
+# ============================================================
+# 3. SERVICE INFORMATION AND HEALTH ENDPOINTS
+# ============================================================
 
 @app.get("/")
 def root():
@@ -111,6 +128,10 @@ def model_info():
     }
 
 
+# ============================================================
+# 4. REAL-TIME PREDICTION ENDPOINT
+# ============================================================
+
 @app.post("/predict")
 def predict(customer: CustomerData):
     """
@@ -133,7 +154,8 @@ def predict(customer: CustomerData):
         # Convert incoming customer data into dictionary
         customer_data = customer.model_dump()
 
-        # Convert dictionary into DataFrame
+        # The saved pipeline expects one row with the original
+        # feature names, so the request becomes a DataFrame.
         customer_df = pd.DataFrame(
             [customer_data]
         )
@@ -145,6 +167,8 @@ def predict(customer: CustomerData):
         # positive class is always in column [1]. This avoids
         # silently inverted predictions if the model's class
         # ordering ever changes.
+        # The saved pipeline first preprocesses the row and then
+        # asks the selected classifier for class probabilities.
         probability = model.predict_proba(
             customer_df
         )[0][POSITIVE_CLASS_INDEX]
@@ -165,6 +189,7 @@ def predict(customer: CustomerData):
             time.time() - start_time
         )
 
+        # Return a small JSON response for the API Gateway.
         return {
             "prediction": prediction,
             "subscription": subscription,
