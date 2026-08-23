@@ -1,6 +1,6 @@
 services:
   # Su: PostgreSQL Database
-  postgres-db:
+  postgres:
     image: postgres:15-alpine
     container_name: bank-postgres
     environment:
@@ -35,10 +35,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres-db:5432/bank_marketing
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/bank_marketing
       - PORT=8000
     depends_on:
-      postgres-db:
+      postgres:
         condition: service_healthy
 
   # Su: Adminer Database UI
@@ -48,9 +48,9 @@ services:
     ports:
       - "8082:8080"
     environment:
-      ADMINER_DEFAULT_SERVER: postgres-db
+      ADMINER_DEFAULT_SERVER: postgres
     depends_on:
-      postgres-db:
+      postgres:
         condition: service_healthy
 
   # Su: Monitoring Service

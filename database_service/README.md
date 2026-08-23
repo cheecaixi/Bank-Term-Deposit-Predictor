@@ -294,8 +294,6 @@ The health endpoint should return:
 | `GET` | `/batch-uploads/{batch_id}` | Retrieve one batch |
 | `GET` | `/batch-uploads/{batch_id}/customers` | List customers in a batch |
 | `GET` | `/batch-uploads/{batch_id}/results` | Get results for a batch |
-| `POST` | `/historical-data` | Store a historical record |
-| `GET` | `/historical-data` | List historical records |
 
 Use the Swagger page at `/docs` to inspect request schemas and test endpoints.
 
@@ -349,9 +347,6 @@ Once campaign information exists, save the prediction:
 
 `GET /predictions` returns all live predictions. Use
 `GET /predictions/customer/{customer_id}` to filter them by customer.
-`GET /historical-data` returns imported historical dataset rows and is separate
-from live customer predictions.
-
 ## Stop the services
 
 Stop Uvicorn with `Ctrl+C`. Stop PostgreSQL with:

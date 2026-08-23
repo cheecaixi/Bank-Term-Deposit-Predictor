@@ -13,8 +13,7 @@ from app.models import (
     Customer,
     CampaignHistory,
     Prediction,
-    BatchUpload,
-    HistoricalData
+    BatchUpload
 )
 
 from app.schemas import (
@@ -27,9 +26,7 @@ from app.schemas import (
     PredictionResponse,
     BatchUploadCreate,
     BatchUploadResponse,
-    BatchUploadCheckResponse,
-    HistoricalDataCreate,
-    HistoricalDataResponse
+    BatchUploadCheckResponse
 )
 
 
@@ -606,39 +603,3 @@ def get_batch_results(
         "total_records": batch.total_records,
         "results": response
     }
-
-
-# ============================================================
-# HISTORICAL DATA
-# ============================================================
-
-@router.post(
-    "/historical-data",
-    response_model=HistoricalDataResponse,
-    tags=["Historical Data"]
-)
-def create_historical_record(
-    data: HistoricalDataCreate,
-    db: Session = Depends(get_db)
-):
-
-    record = HistoricalData(
-        **data.model_dump()
-    )
-
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-
-    return record
-
-
-@router.get(
-    "/historical-data",
-    tags=["Historical Data"]
-)
-def get_historical_data(
-    db: Session = Depends(get_db)
-):
-
-    return db.query(HistoricalData).all()
