@@ -99,15 +99,27 @@ def get_option_index(options, value):
     except ValueError:
         return 0
 
-def update_customer(customer_id: int, customer_data: dict):
+def update_customer(customer_id: int, customer_data: dict) -> dict:
     """
-    Update an existing customer through Member B.
+    Update an existing customer through the API Gateway.
+
+    The API Gateway forwards the update to the Database Service
+    using the customer's existing customer ID.
+
+    Returns:
+        Updated customer record.
     """
     url = (
         f"{st.session_state.gateway_url}"
         f"/api/customers/{customer_id}"
     )
-    response = requests.put(url, json=customer_data, timeout=10)
+
+    response = requests.put(
+        url,
+        json=customer_data,
+        timeout=10
+    )
+
     response.raise_for_status()
     return response.json()
 
@@ -834,14 +846,12 @@ with tab1:
         else:
 
             # -----------------------------------------------------
-            # Create complete request
+            # Build updated customer record
             # -----------------------------------------------------
             record = {
-
-                # Customer identification
                 "phone_number": phone_number.strip(),
 
-                # Customer features
+                # Customer information
                 "age": age,
                 "job": job,
                 "marital": marital,
@@ -851,7 +861,7 @@ with tab1:
                 "housing": housing,
                 "loan": loan,
 
-                # Campaign features
+                # Campaign information
                 "contact": contact,
                 "day": day,
                 "month": month,
@@ -862,157 +872,231 @@ with tab1:
             }
 
             # -----------------------------------------------------
-            # Call Member B
+            # Update existing customer if one was found
             # -----------------------------------------------------
-            with st.spinner(
-                "Sending customer information to the AI system..."
-            ):
+            existing_customer = st.session_state.get(
+                "found_customer"
+            )
 
-                result = predict_one(record)
+            customer_id = st.session_state.get(
+                "customer_id"
+            )
 
-            # -----------------------------------------------------
-            # Display result
-            # -----------------------------------------------------
-            if result:
+            try:
 
-                probability = result["probability"]
+                if existing_customer and customer_id is not None:
 
-                subscription = result["subscription"]
+                    with st.spinner(
+                        "Updating existing customer information..."
+                    ):
 
-                processing_time = result.get(
-                    "processing_time_seconds"
-                )
+                        update_customer(
+                            customer_id=customer_id,
+                            customer_data=record
+                        )
 
-                returned_customer_id = result.get(
-                    "customer_id"
-                )
-
-                st.divider()
-
-                st.markdown("### 📊 Prediction Result")
-
-                # -------------------------------------------------
-                # Customer identification
-                # -------------------------------------------------
-                if returned_customer_id is not None:
-
-                    st.caption(
-                        f"Customer ID: {returned_customer_id} "
-                        f"• Phone: {phone_number}"
+                    st.success(
+                        f"✅ Customer {customer_id} information "
+                        "has been updated."
                     )
 
                 # -------------------------------------------------
-                # Result metrics
+                # Generate prediction
                 # -------------------------------------------------
-                result_col1, result_col2 = st.columns([1, 2])
+                with st.spinner(
+                    "Generating subscription prediction..."
+                ):
 
-                with result_col1:
+                    result = predict_one(record)
 
-                    st.metric(
-                        "Subscription Probability",
-                        f"{probability * 100:.1f}%"
+                # -------------------------------------------------
+                # Display prediction result
+                # -------------------------------------------------
+                if result:
+
+                    probability = result["probability"]
+
+                    subscription = result.get(
+                        "subscription",
+                        result.get("prediction")
                     )
 
-                with result_col2:
-
-                    st.write(
-                        "**Predicted Likelihood**"
+                    processing_time = result.get(
+                        "processing_time_seconds"
                     )
 
-                    st.progress(
-                        probability
+                    returned_customer_id = result.get(
+                        "customer_id",
+                        customer_id
+                    )
+
+                    st.divider()
+
+                    st.markdown(
+                        "### 📊 Prediction Result"
                     )
 
                     # -------------------------------------------------
-                    # CAMPAIGN PRIORITY
+                    # Customer identification
                     # -------------------------------------------------
-                    if probability >= 0.70:
+                    if returned_customer_id is not None:
 
-                        priority = "🟢 High Priority"
-
-                        priority_description = (
-                            "The model estimates a strong likelihood of subscription. "
-                            "Prioritise this customer for campaign follow-up."
+                        st.caption(
+                            f"Customer ID: {returned_customer_id} "
+                            f"• Phone: {phone_number}"
                         )
 
-                    elif probability >= 0.60:
+                    # -------------------------------------------------
+                    # Probability
+                    # -------------------------------------------------
+                    result_col1, result_col2 = st.columns([1, 2])
 
-                        priority = "🟡 Medium Priority"
+                    with result_col1:
 
-                        priority_description = (
-                            "The model estimates a moderate likelihood of subscription. "
-                            "Consider this customer for campaign follow-up."
+                        st.metric(
+                            "Subscription Probability",
+                            f"{probability * 100:.1f}%"
+                        )
+
+                    with result_col2:
+
+                        st.write(
+                            "**Predicted Likelihood**"
+                        )
+
+                        st.progress(
+                            probability
+                        )
+
+                        # ---------------------------------------------
+                        # Campaign priority
+                        # ---------------------------------------------
+                        if probability >= 0.70:
+
+                            priority = "🟢 High Priority"
+
+                            priority_description = (
+                                "The model estimates a strong likelihood "
+                                "of subscription. Prioritise this customer "
+                                "for campaign follow-up."
+                            )
+
+                        elif probability >= 0.60:
+
+                            priority = "🟡 Medium Priority"
+
+                            priority_description = (
+                                "The model estimates a moderate likelihood "
+                                "of subscription. Consider this customer "
+                                "for campaign follow-up."
+                            )
+
+                        else:
+
+                            priority = "🔴 Low Priority"
+
+                            priority_description = (
+                                "The model estimates a lower likelihood "
+                                "of subscription. This does not mean "
+                                "the customer will not subscribe."
+                            )
+
+                        st.write(
+                            "**Campaign Priority**"
+                        )
+
+                        if probability >= 0.70:
+                            st.success(priority)
+
+                        elif probability >= 0.60:
+                            st.warning(priority)
+
+                        else:
+                            st.error(priority)
+
+                        st.write(
+                            priority_description
+                        )
+
+                    # -------------------------------------------------
+                    # Prediction interpretation
+                    # -------------------------------------------------
+                    if subscription == "Yes":
+
+                        st.write(
+                            "The AI model predicts a higher likelihood "
+                            "that this customer will subscribe to the "
+                            "term deposit. The customer may therefore "
+                            "be considered a higher-priority prospect "
+                            "for the marketing campaign."
                         )
 
                     else:
-                        priority = "🔴 Low Priority"
 
-                        priority_description = (
-                            "The model estimates a lower likelihood of subscription. "
-                            "This does not mean the customer will not subscribe."
+                        st.write(
+                            "The AI model predicts a lower likelihood "
+                            "that this customer will subscribe to the "
+                            "term deposit. The result can be considered "
+                            "when deciding how to allocate campaign "
+                            "calling resources."
                         )
 
-                    st.write("**Campaign Priority**")
+                    # -------------------------------------------------
+                    # Processing time
+                    # -------------------------------------------------
+                    if processing_time is not None:
 
-                    if probability >= 0.70:
-                        st.success(priority)
+                        st.caption(
+                            f"Model processing time: "
+                            f"{processing_time:.4f} seconds"
+                        )
 
-                    elif probability >= 0.60:
-                        st.warning(priority)
-
-                    else:
-                        st.error(priority)
-
-                    st.write(priority_description)
-
-                # -------------------------------------------------
-                # Interpretation
-                # -------------------------------------------------
-                if subscription == "Yes":
-
-                    st.write(
-                        "The AI model predicts a higher likelihood "
-                        "that this customer will subscribe to the "
-                        "term deposit. The customer may therefore "
-                        "be considered a higher-priority prospect "
-                        "for the marketing campaign."
+                    # -------------------------------------------------
+                    # Save session history
+                    # -------------------------------------------------
+                    st.session_state.history.insert(
+                        0,
+                        {
+                            "time": time.strftime("%H:%M:%S"),
+                            "phone_number": phone_number,
+                            "job": job,
+                            "age": age,
+                            "probability": probability,
+                            "prediction": subscription
+                        }
                     )
 
-                else:
+            except requests.exceptions.HTTPError as error:
 
-                    st.write(
-                        "The AI model predicts a lower likelihood "
-                        "that this customer will subscribe to the "
-                        "term deposit. The result can be considered "
-                        "when deciding how to allocate campaign "
-                        "calling resources."
-                    )
+                status_code = (
+                    error.response.status_code
+                    if error.response is not None
+                    else None
+                )
 
-                # -------------------------------------------------
-                # Processing time
-                # -------------------------------------------------
-                if processing_time is not None:
+                error_message = (
+                    error.response.text
+                    if error.response is not None
+                    else str(error)
+                )
 
-                    st.caption(
-                        f"Model processing time: "
-                        f"{processing_time:.4f} seconds"
-                    )
+                st.error(
+                    f"❌ Customer update or prediction failed.\n\n"
+                    f"HTTP Status: {status_code}\n\n"
+                    f"Details: {error_message}"
+                )
 
-                # -------------------------------------------------
-                # Save session history
-                # -------------------------------------------------
-                st.session_state.history.insert(
-                    0,
-                    {
-                        "time": time.strftime(
-                            "%H:%M:%S"
-                        ),
-                        "phone_number": phone_number,
-                        "job": job,
-                        "age": age,
-                        "probability": probability,
-                        "prediction": subscription
-                    }
+            except requests.exceptions.RequestException as error:
+
+                st.error(
+                    "❌ Unable to communicate with the API Gateway.\n\n"
+                    f"Details: {error}"
+                )
+
+            except Exception as error:
+
+                st.error(
+                    f"❌ Unexpected error: {error}"
                 )
 
     # =============================================================
