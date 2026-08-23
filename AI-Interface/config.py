@@ -1,5 +1,13 @@
+# config.py
+# Keep shared paths and model settings in one place so training,
+# evaluation, and inference use the same configuration.
+
 import os
 
+
+# ============================================================
+# PROJECT PATHS
+# ============================================================
 
 # Folder containing config.py
 AI_INTERFACE_DIR = os.path.dirname(
@@ -13,7 +21,11 @@ PROJECT_ROOT = os.path.dirname(
 )
 
 
-# Random seed
+# ============================================================
+# REPRODUCIBLE TRAINING SETTINGS
+# ============================================================
+
+# Reusing this seed keeps data splits and model searches repeatable.
 RANDOM_STATE = 42
 
 
@@ -25,7 +37,11 @@ DATA_PATH = os.path.join(
 )
 
 
-# Prediction threshold
+# ============================================================
+# DEPLOYED MODEL SETTINGS
+# ============================================================
+
+# Probabilities at or above this value become a Yes prediction.
 PREDICTION_THRESHOLD = 0.6
 
 # Saved model location
@@ -43,6 +59,10 @@ MODEL_VERSION = "1.0"
 
 NUMBER_OF_FEATURES = 15
 
+
+# ============================================================
+# FASTAPI SERVICE SETTINGS
+# ============================================================
 
 # API settings
 API_HOST = "0.0.0.0"

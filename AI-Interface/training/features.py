@@ -1,5 +1,6 @@
 # features.py
-# Prepare features for machine learning
+# Separate the target and build the preprocessing operations
+# that run before every model prediction.
 
 # Tools used to prepare the data for machine learning
 from sklearn.compose import ColumnTransformer
@@ -9,7 +10,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from training.cleaning import load_data, clean_data
 
 
-# Numerical columns
+# These six numerical values are scaled to a comparable range.
 NUMERICAL_FEATURES = [
     "age",
     "balance",
@@ -20,7 +21,7 @@ NUMERICAL_FEATURES = [
 ]
 
 
-# Categorical columns
+# These nine text-based values are converted with one-hot encoding.
 CATEGORICAL_FEATURES = [
     "job",
     "marital",
@@ -33,6 +34,10 @@ CATEGORICAL_FEATURES = [
     "poutcome"
 ]
 
+
+# ============================================================
+# 1. SEPARATE MODEL INPUTS FROM THE TARGET
+# ============================================================
 
 def prepare_features(df):
     """
@@ -62,6 +67,10 @@ def prepare_features(df):
     return X, y
 
 
+# ============================================================
+# 2. BUILD THE REUSABLE PREPROCESSING PIPELINE
+# ============================================================
+
 def build_preprocessor():
     """
     Create preprocessing steps for numerical
@@ -82,7 +91,9 @@ def build_preprocessor():
         sparse_output=False
     )
 
-    # Apply preprocessing based on column type
+    # Apply the correct transformation to each group of columns.
+    # This object is placed inside every model pipeline so the
+    # same fitted preprocessing is saved with the final model.
     preprocessor = ColumnTransformer(
         transformers=[
             (
@@ -101,7 +112,7 @@ def build_preprocessor():
     return preprocessor
 
 
-# Run this section only when features.py is run directly
+# Running this file directly performs a quick feature check.
 if __name__ == "__main__":
 
     # Load original dataset
