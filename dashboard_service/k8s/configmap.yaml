@@ -8,4 +8,4 @@ metadata:
 data:
   # Internal Kubernetes Service URL of the API Gateway
   # The Dashboard uses this URL to communicate with the API Gateway
-  GATEWAY_URL: "http://api-gateway:8080"
+  GATEWAY_URL: "http://api-gateway-service:8080"
