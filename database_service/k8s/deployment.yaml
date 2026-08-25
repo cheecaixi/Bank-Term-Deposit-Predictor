@@ -93,9 +93,9 @@ spec:
 
         - name: database-service  # Name of the Database API container
 
-          image: database_service-database-api:latest  # Docker image containing the FastAPI Database Service
-          imagePullPolicy: Never
-          # Uses the locally available Docker image instead of pulling online
+          image: sumyatmon17/database-api:v1  # Docker Hub image containing the FastAPI Database Service
+          imagePullPolicy: Always
+          # Pulls the latest published image from Docker Hub
 
           ports:
             - containerPort: 8000  # Port used by the FastAPI application
