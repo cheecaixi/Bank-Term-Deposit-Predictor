@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: monitoring-service
-          image: monitoring_service-monitoring-service:latest  # Docker image containing the Monitoring Service
-          imagePullPolicy: Never
+          image: sumyatmon17/monitoring-service:v1  # Docker Hub image containing the Monitoring Service
+          imagePullPolicy: Always
           ports:
             - containerPort: 7002 # Port used by the Monitoring Service
           envFrom:   # Loads all environment variables from the monitoring ConfigMap
