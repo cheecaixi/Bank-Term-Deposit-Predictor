@@ -9,58 +9,59 @@ metadata:
   name: postgres
 
 spec:
-  replicas: 1
+  replicas: 1 # run one postgresql pod
 
   selector:
     matchLabels:
-      app: postgres
+      app: postgres # Deployment manages pods with this label
 
   template:
     metadata:
       labels:
-        app: postgres
+        app: postgres   # Label assigned to the PostgreSQL pod
 
     spec:
       containers:
 
-        - name: postgres
+        - name: postgres  # Name of the PostgreSQL container
 
-          image: postgres:16
+          image: postgres:16  # Uses PostgreSQL version 16 image
 
           ports:
-            - containerPort: 5432
+            - containerPort: 5432 # PostgreSQL port
 
           env:
 
-            - name: POSTGRES_DB
+            - name: POSTGRES_DB # Database name used by PostgreSQL
               valueFrom:
                 configMapKeyRef:
                   name: database-config
                   key: postgres-db
 
-            - name: POSTGRES_USER
+            - name: POSTGRES_USER # PostgreSQL username
               valueFrom:
                 configMapKeyRef:
                   name: database-config
-                  key: postgres-user
+                  key: postgres-user # Reads username from ConfigMap
 
-            - name: POSTGRES_PASSWORD
+            - name: POSTGRES_PASSWORD # PostgreSQL password
               valueFrom:
                 secretKeyRef:
                   name: database-secret
-                  key: postgres-password
+                  key: postgres-password # Reads password securely from Secret
 
           volumeMounts:
 
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+              # Stores PostgreSQL database files in persistent storage
 
       volumes:
 
         - name: postgres-storage
 
           persistentVolumeClaim:
-            claimName: postgres-pvc
+            claimName: postgres-pvc # Connects the pod to the PostgreSQL PersistentVolumeClaim
 
 
 ---
@@ -73,35 +74,36 @@ apiVersion: apps/v1
 kind: Deployment
 
 metadata:
-  name: database-service
+  name: database-service # Name of the Database Service deployment
 
 spec:
-  replicas: 1
+  replicas: 2  # Runs Database API pod
 
   selector:
     matchLabels:
-      app: database-service
+      app: database-service  # Selects pods belonging to this deployment
 
   template:
     metadata:
       labels:
-        app: database-service
+        app: database-service  # Label assigned to the Database API pod
 
     spec:
       containers:
 
-        - name: database-service
+        - name: database-service  # Name of the Database API container
 
-          image: database_service-database-api:latest
+          image: database_service-database-api:latest  # Docker image containing the FastAPI Database Service
           imagePullPolicy: Never
+          # Uses the locally available Docker image instead of pulling online
 
           ports:
-            - containerPort: 8000
+            - containerPort: 8000  # Port used by the FastAPI application
 
           env:
 
-            - name: DATABASE_URL
+            - name: DATABASE_URL  # Database connection string used by the API
               valueFrom:
                 secretKeyRef:
                   name: database-secret
-                  key: database-url
+                  key: database-url # Retrieves the database URL securely from Kubernetes Secret

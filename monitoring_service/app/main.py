@@ -1,3 +1,6 @@
+# Main FastAPI application for the Monitoring Service.
+# Provides service health checks, centralized logs, and monitoring metrics.
+
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -9,26 +12,28 @@ from app.monitor import check_all_services, monitoring_loop
 from app.schemas import LogCreate
 from app.storage import add_log, get_logs, get_metrics, initialize_database
 
-
+# Manages startup and shutdown tasks for the Monitoring Service
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    initialize_database()
+    initialize_database() # Initializes the monitoring database when the service starts
     add_log(LogCreate(
         service="monitoring-service",
         event="startup",
         message="Monitoring service started",
     ))
+    # Starts the background monitoring loop
     monitor_task = asyncio.create_task(monitoring_loop())
     try:
         yield
     finally:
+         # Stops the background monitoring task when the service shuts down
         monitor_task.cancel()
         try:
             await monitor_task
         except asyncio.CancelledError:
             pass
 
-
+# Creates and configures the FastAPI Monitoring Service application
 app = FastAPI(
     title="Bank Marketing Monitoring Service",
     description=(
@@ -36,6 +41,7 @@ app = FastAPI(
     ),
     version="1.0.0",
     lifespan=lifespan,
+    # Organizes API endpoints into sections in Swagger documentation
     openapi_tags=[
         {
             "name": "Monitoring Service",
@@ -60,7 +66,7 @@ app = FastAPI(
     ],
 )
 
-
+# Returns basic information about the Monitoring Service
 @app.get(
     "/",
     tags=["Monitoring Service"],
@@ -77,7 +83,7 @@ def root():
         "monitored_services": list(MONITORED_SERVICES),
     }
 
-
+# Checks whether the Monitoring Service itself is running
 @app.get(
     "/health",
     tags=["Monitoring Service"],
@@ -90,7 +96,7 @@ def root():
 def health():
     return {"status": "healthy", "service": "monitoring-service"}
 
-
+# Checks the health and response time of all monitored microservices
 @app.get(
     "/status",
     tags=["Microservice Status"],
@@ -102,8 +108,9 @@ def health():
     ),
 )
 async def service_status():
+     # Performs health checks on all configured services
     checks = await check_all_services()
-    return {
+    return { # System is healthy only when every monitored service is healthy
         "overall_status": (
             "healthy"
             if all(item["status"] == "healthy" for item in checks)
@@ -113,7 +120,7 @@ async def service_status():
         "services": checks,
     }
 
-
+# Retrieves monitoring and application logs
 @app.get(
     "/logs",
     tags=["System Logs"],
@@ -124,13 +131,14 @@ async def service_status():
     ),
 )
 def logs(
+      # Limits how many logs are returned (1–1000)
     limit: int = Query(default=100, ge=1, le=1000),
-    service: Optional[str] = None,
-    level: Optional[str] = Query(default=None, pattern="^[A-Z]+$"),
+    service: Optional[str] = None, # Optionally filters logs by service
+    level: Optional[str] = Query(default=None, pattern="^[A-Z]+$"), # Optionally filters logs by level such as INFO, WARNING or ERROR
 ):
     return get_logs(limit=limit, service=service, level=level)
 
-
+# Receives and stores structured logs sent by other microservices
 @app.post(
     "/logs",
     status_code=status.HTTP_201_CREATED,
@@ -144,7 +152,7 @@ def logs(
 def create_log(log: LogCreate):
     return add_log(log)
 
-
+# Calculates and returns aggregated monitoring metrics
 @app.get(
     "/metrics",
     tags=["Monitoring Metrics"],

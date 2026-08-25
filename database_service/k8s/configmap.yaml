@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: database-config
 data:
-  postgres-db: bank_marketing
-  postgres-user: postgres
+  postgres-db: bank_marketing # postgresql database name
+  postgres-user: postgres # postgresql username

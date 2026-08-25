@@ -32,7 +32,7 @@ spec:
 
     spec:
       containers:
-          name: dashboard
+        - name: dashboard
           image: cheecaixi/dashboard:latest
 
           # Always check the registry for the latest image
@@ -45,7 +45,7 @@ spec:
 
           # API Gateway configuration
           env:
-              name: GATEWAY_URL
+            - name: GATEWAY_URL
 
               valueFrom:
                 configMapKeyRef:

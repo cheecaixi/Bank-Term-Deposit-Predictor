@@ -1,10 +1,11 @@
+# Requests persistent storage for the Monitoring Service's SQLite database and logs.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: monitoring-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteOnce # Allows read/write access from one node
   resources:
     requests:
-      storage: 1Gi
+      storage: 1Gi     # Requests 1 GiB of persistent storage

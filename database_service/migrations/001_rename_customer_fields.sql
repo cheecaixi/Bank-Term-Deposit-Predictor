@@ -1,3 +1,5 @@
+-- Renames customer table columns to match the column names expected by the application
+
 BEGIN;
 
 ALTER TABLE customers

@@ -1,9 +1,52 @@
-models/*.joblib
+# Python
+# Python bytecode
+__pycache__/
 **/__pycache__/
 *.py[cod]
+*$py.class
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables / secrets
 .env
+.env.*
 **/.env
+**/.env.*
+
+# Machine Learning Models
+# Ignore trained model files
+models/*.joblib
+**/models/*.joblib
+
+# Logs
 *.log
-*.log
+**/*.log
+
+# Testing / Coverage
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Kubernetes Secrets
+# Never commit Kubernetes secrets
 **/k8s/secret.yaml
-**/_pytest_cache_/
+**/k8s/secrets.yaml
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp

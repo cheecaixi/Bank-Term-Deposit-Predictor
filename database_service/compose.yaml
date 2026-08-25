@@ -1,45 +1,78 @@
+# Runs the PostgreSQL database, Database API, and Adminer together using Docker Compose
+
 version: '3.8'
+
 services:
+
+  # PostgreSQL database service
   postgres:
-    image: postgres:15-alpine
+
+    image: postgres:15-alpine        # Uses the lightweight PostgreSQL 15 image
+
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: bank_marketing
+      POSTGRES_USER: postgres        # Database username
+      POSTGRES_PASSWORD: postgres    # Database password
+      POSTGRES_DB: bank_marketing    # Database name
+
     ports:
-      - "5433:5432"
+      - "5433:5432"                  # Maps host port 5433 to PostgreSQL port 5432
+
     volumes:
       - bank_postgres_data:/var/lib/postgresql/data
+      # Stores PostgreSQL data persistently
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d bank_marketing"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
+      # Checks whether PostgreSQL is ready to accept connections
 
+      interval: 5s                   # Runs health check every 5 seconds
+      timeout: 5s                    # Waits up to 5 seconds for each check
+      retries: 10                    # Retries up to 10 times if unhealthy
+
+    restart: unless-stopped          # Restarts automatically unless manually stopped
+
+
+  # FastAPI Database Service
   database-api:
+
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: .                     # Uses the current directory as build context
+      dockerfile: Dockerfile         # Builds the API using the Dockerfile
+
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/bank_marketing
+      # Connection URL used by the API to connect to PostgreSQL
+
     ports:
-      - "8000:8000"
+      - "8000:8000"                  # Exposes the FastAPI service on port 8000
+
     depends_on:
       postgres:
-        condition: service_healthy
-    restart: unless-stopped
+        condition: service_healthy   # Starts API after PostgreSQL becomes healthy
 
+    restart: unless-stopped          # Restarts automatically unless manually stopped
+
+
+  # Adminer database management interface
   adminer:
-    image: adminer:latest
+
+    image: adminer:latest            # Uses the latest Adminer image
+
     environment:
       ADMINER_DEFAULT_SERVER: postgres
+      # Sets PostgreSQL as the default database server
+
     ports:
-      - "8082:8080"
+      - "8082:8080"                  # Access Adminer through localhost:8082
+
     depends_on:
       postgres:
-        condition: service_healthy
-    restart: unless-stopped
+        condition: service_healthy   # Starts Adminer after PostgreSQL becomes healthy
 
+    restart: unless-stopped          # Restarts automatically unless manually stopped
+
+
+# Defines persistent storage used by PostgreSQL
 volumes:
-  bank_postgres_data:
+
+  bank_postgres_data:                # Keeps database data even if container is removed
