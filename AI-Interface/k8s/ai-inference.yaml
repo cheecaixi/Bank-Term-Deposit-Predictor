@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: ai-inference
-          image: amandalobo1/ai-inference:v1
+          image: amandajanelobo/ai-inference:v1
+          imagePullPolicy: Always
           ports:
             - containerPort: 7000
           resources:
