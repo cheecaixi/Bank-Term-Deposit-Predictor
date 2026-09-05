@@ -479,12 +479,17 @@ Start Minikube:
 
 ```powershell
 minikube start
+minikube status
 ```
 
 Apply the Kubernetes configurations:
 
 ```powershell
-kubectl apply -f k8s/
+kubectl apply -f database_service/k8s/
+kubectl apply -f AI-Interface/k8s/
+kubectl apply -f monitoring_service/k8s/
+kubectl apply -f api_gateway/k8s/
+kubectl apply -f dashboard_service/k8s/
 ```
 
 Check deployments:
@@ -509,6 +514,12 @@ Check HPA:
 
 ```powershell
 kubectl get hpa
+```
+
+Check all:
+
+```powershell
+kubectl get all
 ```
 
 ---
