@@ -492,6 +492,12 @@ kubectl apply -f api_gateway/k8s/
 kubectl apply -f dashboard_service/k8s/
 ```
 
+Open:
+
+```powershell
+minikube service dashboard-service
+```
+
 Check deployments:
 
 ```powershell
